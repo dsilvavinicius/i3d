@@ -1,6 +1,16 @@
 import torch
 from torch.autograd import grad
 
+def curvature(y, x):
+    ''' curvature of a implicit surface (https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas).
+    '''
+    grad = gradient(y, x)
+    hess = hessian(y, x)
+    F = torch.cat((hess, grad), 2)
+    grad4d = torch.cat((grad, torch.zeros(grad.shape[0])), 1)
+    F = torch.cat((F, grad4d), 1)
+    K = -torch.det(F) / (torch.norm(grad) ** 4)
+    return K
 
 def hessian(y, x):
     ''' hessian of y wrt x

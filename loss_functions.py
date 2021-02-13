@@ -222,9 +222,9 @@ def sdf(model_output, gt):
 
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
-    #pred_curvature = calculate_curvature(pred_sdf)
 
     gradient = diff_operators.gradient(pred_sdf, coords)
+    pred_curvature = diff_operators.curvature(pred_sdf, coords)
 
     # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
     sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
@@ -232,13 +232,14 @@ def sdf(model_output, gt):
     normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None],
                                     torch.zeros_like(gradient[..., :1]))
     grad_constraint = torch.abs(gradient.norm(dim=-1) - 1)
-    # TODO: Curvature constraint
+    curv_constraint = torch.where(gt_sdf != -1, (pred_curvature - gt_curvature)**2, torch.zeros_like(pred_curvature))
     
     # Exp      # Lapl
     # -----------------
     return {'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3
             'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
             'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
-            'grad_constraint': grad_constraint.mean() * 5e1}  # 1e1      # 5e1
+            'grad_constraint': grad_constraint.mean() * 5e1,
+            'curv_constraint': curv_constraint.mean() * 5e1}
 
 # inter = 3e3 for ReLU-PE

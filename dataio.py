@@ -396,8 +396,8 @@ class PointCloud(Dataset):
         print("Finished loading point cloud")
 
         coords = point_cloud[:, :3]
-        self.normals = point_cloud[:, 3:6]
-        self.curvatures = point_cloud[:, -1]
+        curvatures = point_cloud[:, 3]
+        self.normals = point_cloud[:, 4:7]
 
         # Reshape point cloud such that it lies in bounding box of (-1, 1) (distorts geometry, but makes for high
         # sample efficiency)
@@ -412,6 +412,8 @@ class PointCloud(Dataset):
         self.coords = (coords - coord_min) / (coord_max - coord_min)
         self.coords -= 0.5
         self.coords *= 2.
+        # The curvature is not invariant to scale, so we need to fix it.
+        self.curvatures = curvatures / ((2. / (coord_max - coord_min)) ** 2.)
 
         self.on_surface_points = on_surface_points
 
@@ -433,7 +435,9 @@ class PointCloud(Dataset):
 
         off_surface_coords = np.random.uniform(-1, 1, size=(off_surface_samples, 3))
         off_surface_normals = np.ones((off_surface_samples, 3)) * -1
-        off_surface_curvature = np.zeros((off_surface_samples)) # TODO: validate off surface curvature initialization (currently is zero)
+        off_surface_curvature = np.zeros((off_surface_samples, 1))
+        # We consider the curvature of the sphere centered in the origin with radius equal to the norm of the coordinate.
+        # off_surface_curvature = 1 / (np.linalg.norm(off_surface_coords, axis=1) ** 2)
 
         sdf = np.zeros((total_samples, 1))  # on-surface = 0
         sdf[self.on_surface_points:, :] = -1  # off-surface = -1
