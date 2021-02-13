@@ -218,9 +218,11 @@ def sdf(model_output, gt):
        '''
     gt_sdf = gt['sdf']
     gt_normals = gt['normals']
+    gt_curvature = gt['curvature']
 
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
+    #pred_curvature = calculate_curvature(pred_sdf)
 
     gradient = diff_operators.gradient(pred_sdf, coords)
 
@@ -230,6 +232,8 @@ def sdf(model_output, gt):
     normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None],
                                     torch.zeros_like(gradient[..., :1]))
     grad_constraint = torch.abs(gradient.norm(dim=-1) - 1)
+    # TODO: Curvature constraint
+    
     # Exp      # Lapl
     # -----------------
     return {'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3

@@ -396,7 +396,8 @@ class PointCloud(Dataset):
         print("Finished loading point cloud")
 
         coords = point_cloud[:, :3]
-        self.normals = point_cloud[:, 3:]
+        self.normals = point_cloud[:, 3:6]
+        self.curvatures = point_cloud[:, -1]
 
         # Reshape point cloud such that it lies in bounding box of (-1, 1) (distorts geometry, but makes for high
         # sample efficiency)
@@ -428,18 +429,22 @@ class PointCloud(Dataset):
 
         on_surface_coords = self.coords[rand_idcs, :]
         on_surface_normals = self.normals[rand_idcs, :]
+        on_surface_curvature = self.curvatures[rand_idcs]
 
         off_surface_coords = np.random.uniform(-1, 1, size=(off_surface_samples, 3))
         off_surface_normals = np.ones((off_surface_samples, 3)) * -1
+        off_surface_curvature = np.zeros((off_surface_samples)) # TODO: validate off surface curvature initialization (currently is zero)
 
         sdf = np.zeros((total_samples, 1))  # on-surface = 0
         sdf[self.on_surface_points:, :] = -1  # off-surface = -1
 
         coords = np.concatenate((on_surface_coords, off_surface_coords), axis=0)
         normals = np.concatenate((on_surface_normals, off_surface_normals), axis=0)
+        curvature = np.concatenate((on_surface_curvature, off_surface_curvature))
 
         return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
-                                                              'normals': torch.from_numpy(normals).float()}
+                                                              'normals': torch.from_numpy(normals).float(),
+                                                              'curvature': torch.from_numpy(curvature).float()}
 
 
 class Video(Dataset):
