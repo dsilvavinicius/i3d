@@ -1,15 +1,29 @@
 import torch
 from torch.autograd import grad
+import itertools
 
-def curvature(y, x):
+def curvature(grad, hess):
     ''' curvature of a implicit surface (https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas).
     '''
-    grad = gradient(y, x)
-    hess = hessian(y, x)
-    F = torch.cat((hess, grad), 2)
-    grad4d = torch.cat((grad, torch.zeros(grad.shape[0])), 1)
-    F = torch.cat((F, grad4d), 1)
+    if(hess[1] == -1):
+        raise Exception('Hessian has NaN members: ' + str(hess[0]))
+    
+    # Append gradients to the last columns of the hessians.
+    grad5d = torch.unsqueeze(grad, 2)
+    grad5d = torch.unsqueeze(grad5d, -1)
+    F = torch.cat((hess[0], grad5d), -1)
+    
+    # Append gradients (with and additional 0 at the last coord) to the last lines of the hessians.
+    hess_size = hess[0].size()
+    zeros_size = list(itertools.chain.from_iterable((hess_size[:3], [1, 1])))
+    zeros = torch.zeros(zeros_size).to(grad.device)
+    grad5d = torch.unsqueeze(grad, 2)
+    grad5d = torch.unsqueeze(grad5d, -2)
+    grad5d = torch.cat((grad5d, zeros), -1)
+
+    F = torch.cat((F, grad5d), -2)
     K = -torch.det(F) / (torch.norm(grad) ** 4)
+
     return K
 
 def hessian(y, x):

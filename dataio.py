@@ -435,7 +435,7 @@ class PointCloud(Dataset):
 
         off_surface_coords = np.random.uniform(-1, 1, size=(off_surface_samples, 3))
         off_surface_normals = np.ones((off_surface_samples, 3)) * -1
-        off_surface_curvature = np.zeros((off_surface_samples, 1))
+        off_surface_curvature = np.zeros((off_surface_samples))
         # We consider the curvature of the sphere centered in the origin with radius equal to the norm of the coordinate.
         # off_surface_curvature = 1 / (np.linalg.norm(off_surface_coords, axis=1) ** 2)
 
@@ -445,6 +445,8 @@ class PointCloud(Dataset):
         coords = np.concatenate((on_surface_coords, off_surface_coords), axis=0)
         normals = np.concatenate((on_surface_normals, off_surface_normals), axis=0)
         curvature = np.concatenate((on_surface_curvature, off_surface_curvature))
+        curvature = np.expand_dims(curvature, -1)
+
 
         return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
                                                               'normals': torch.from_numpy(normals).float(),
