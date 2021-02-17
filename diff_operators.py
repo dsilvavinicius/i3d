@@ -22,7 +22,10 @@ def curvature(grad, hess):
     grad5d = torch.cat((grad5d, zeros), -1)
 
     F = torch.cat((F, grad5d), -2)
-    K = -torch.det(F) / (torch.norm(grad) ** 4)
+    grad_norm = torch.norm(grad) 
+
+    # TODO: Check data so this cleaning is not needed.
+    K = torch.where(grad_norm> 0.001, -torch.det(F) / (grad_norm ** 4), torch.zeros_like(grad_norm))
 
     return K
 

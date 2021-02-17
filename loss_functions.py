@@ -218,7 +218,11 @@ def sdf(model_output, gt):
        '''
     gt_sdf = gt['sdf']
     gt_normals = gt['normals']
+
     gt_curvature = gt['curvature']
+    # TODO: Check input data so this cleaning is not needed.
+    gt_curvature = torch.where(gt_curvature< 1000, gt_curvature,  1000*torch.ones_like(gt_curvature))
+    gt_curvature = torch.where(gt_curvature>-1000, gt_curvature, -1000*torch.ones_like(gt_curvature))
 
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
@@ -226,6 +230,13 @@ def sdf(model_output, gt):
     gradient = diff_operators.gradient(pred_sdf, coords)
     hessian = diff_operators.hessian(pred_sdf, coords)
     pred_curvature = diff_operators.curvature(gradient, hessian)
+
+    curvature_loss_tmp = (pred_curvature - gt_curvature)**2
+    # TODO: Check input data so this cleaning is not needed.
+    curvature_loss_tmp1 = torch.where(curvature_loss_tmp<100000, curvature_loss_tmp, 100000*torch.ones_like(curvature_loss_tmp))
+    curvature_max = torch.max(curvature_loss_tmp1)
+    #curvature_loss = torch.where(curvature_loss_tmp<10000, curvature_loss_tmp, torch.zeros_like(curvature_loss_tmp))
+    curvature_loss = curvature_loss_tmp1/curvature_max
 
     torch.cuda.memory_summary()
 
@@ -238,7 +249,7 @@ def sdf(model_output, gt):
     normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None],
                                     torch.zeros_like(gradient[..., :1]))
     grad_constraint = torch.abs(gradient.norm(dim=-1) - 1)
-    curv_constraint = torch.where(gt_sdf != -1, torch.abs(pred_curvature - gt_curvature), torch.zeros_like(pred_curvature))
+    curv_constraint = torch.where(gt_sdf != -1, curvature_loss, torch.zeros_like(pred_curvature))
     
     # Exp      # Lapl
     # -----------------
@@ -246,6 +257,6 @@ def sdf(model_output, gt):
             'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
             'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
             'grad_constraint': grad_constraint.mean() * 5e1,
-            'curv_constraint': curv_constraint.mean() * 5e1}
+            'curv_constraint': curv_constraint.mean() * 1e1}
 
 # inter = 3e3 for ReLU-PE
