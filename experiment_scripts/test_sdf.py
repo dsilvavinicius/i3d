@@ -52,4 +52,4 @@ sdf_decoder = SDFDecoder()
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 utils.cond_mkdir(root_path)
 
-sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test'), N=opt.resolution)
+sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
