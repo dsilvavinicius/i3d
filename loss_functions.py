@@ -220,59 +220,42 @@ def sdf(model_output, gt):
     gt_normals = gt['normals']
 
     # clamp threshold
-    #curv_threshold = 40000.
-    curv_threshold = 50.
+    curv_threshold = 10000.
     curv_loss_threshold = 100000.
 
     gt_curvature = gt['curvature']
-    # TODO: Check input data so this cleaning is not needed.
-    #gt_curvature_clamp = torch.where(gt_curvature< curv_threshold, gt_curvature      ,  curv_threshold*torch.ones_like(gt_curvature))
-    #gt_curvature_clamp = torch.where(gt_curvature>-curv_threshold, gt_curvature_clamp, -curv_threshold*torch.ones_like(gt_curvature))
-    gt_curvature_clamp = torch.where(gt_curvature< curv_threshold, torch.zeros_like(gt_curvature),  torch.ones_like(gt_curvature))
-    gt_curvature_clamp = torch.where(gt_curvature>-curv_threshold, gt_curvature_clamp, -torch.ones_like(gt_curvature))
-
+    
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
 
     gradient = diff_operators.gradient(pred_sdf, coords)
     hessian = diff_operators.hessian(pred_sdf, coords)
 
-    pred_curvature = diff_operators.curvature(gradient, hessian)
-    #pred_curvature_clamp = torch.where(pred_curvature< curv_threshold, pred_curvature      ,  curv_threshold*torch.ones_like(pred_curvature))
-    #pred_curvature_clamp = torch.where(pred_curvature>-curv_threshold, pred_curvature_clamp, -curv_threshold*torch.ones_like(pred_curvature))
-    pred_curvature_clamp = torch.where(pred_curvature< curv_threshold, torch.zeros_like(pred_curvature),  torch.ones_like(pred_curvature))
-    pred_curvature_clamp = torch.where(pred_curvature>-curv_threshold, pred_curvature_clamp, -torch.ones_like(pred_curvature))
-
-    grad_norm = torch.norm(gradient)
-    # we consider the curvature optimization only in the regular points (grad!=0)
-    curvature_loss_tmp = torch.where((grad_norm > 0.00000001)and(gt_sdf != -1), (pred_curvature_clamp - gt_curvature_clamp)**2, torch.zeros_like(pred_curvature_clamp))
-    
-    # TODO: Check input data so this cleaning is not needed.
-    #curvature_loss_tmp1 = torch.where(curvature_loss_tmp<curv_loss_threshold, curvature_loss_tmp, curv_loss_threshold*torch.ones_like(curvature_loss_tmp))
-    #curvature_max = torch.max(curvature_loss_tmp1)
-    #curvature_loss = curvature_loss_tmp1/curvature_max
-    curvature_loss = curvature_loss_tmp
-
-    torch.cuda.memory_summary()
+    # gaussian curvature
+    #pred_curvature = diff_operators.curvature(gradient, hessian).unsqueeze(-1)
+    #curvature_diff = torch.tanh(0.01*pred_curvature) - torch.tanh(0.01*gt_curvature)
+ 
+    # mean curvature
+    pred_curvature = diff_operators.mean_curvature(pred_sdf, coords)
+    curvature_diff = torch.where(gt_sdf != -1, torch.tanh(1000*pred_curvature) - torch.tanh(1000*gt_curvature), torch.zeros_like(pred_curvature))
 
     # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
     sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
-    
-    torch.cuda.memory_summary()
-    
     inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
-    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None],
-                                    torch.zeros_like(gradient[..., :1]))
-    #grad_constraint = torch.abs(gradient.norm(dim=-1) - 1)
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
     grad_constraint = (gradient.norm(dim=-1) - 1)**2
-    curv_constraint = torch.where(gt_sdf != -1, curvature_loss, torch.zeros_like(pred_curvature))
-    
+    curv_constraint = torch.where(gt_sdf != -1, torch.pow(curvature_diff, 2), torch.zeros_like(pred_curvature))
+
+    abs_curvature = torch.abs(gt_curvature)
+    normal_constraint = torch.where(abs_curvature> 5., normal_constraint, torch.zeros_like(gradient[..., :1]))
+    curv_constraint = torch.where(abs_curvature> 10., curv_constraint, torch.zeros_like(pred_curvature))
+
     # Exp      # Lapl
     # -----------------
     return {'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3
             'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
             'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
             'grad_constraint': grad_constraint.mean() * 5e1,
-            'curv_constraint': curv_constraint.mean() * 6e2}
+            'curv_constraint': curv_constraint.mean() }
 
 # inter = 3e3 for ReLU-PE

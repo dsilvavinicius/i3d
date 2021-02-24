@@ -399,6 +399,10 @@ class PointCloud(Dataset):
         curvatures = point_cloud[:, 3]
         self.normals = point_cloud[:, 4:7]
 
+        #for mesh lab curvatures
+        #curvatures = point_cloud[:, 6]
+        #self.normals = point_cloud[:, 3:6]
+
         # Reshape point cloud such that it lies in bounding box of (-1, 1) (distorts geometry, but makes for high
         # sample efficiency)
         coords -= np.mean(coords, axis=0, keepdims=True)
@@ -412,8 +416,8 @@ class PointCloud(Dataset):
         self.coords = (coords - coord_min) / (coord_max - coord_min)
         self.coords -= 0.5
         self.coords *= 2.
-        # The curvature is not invariant to scale, so we need to fix it.
-        self.curvatures = curvatures / ((2. / (coord_max - coord_min)) ** 2.)
+
+        self.curvatures = curvatures
 
         self.on_surface_points = on_surface_points
 

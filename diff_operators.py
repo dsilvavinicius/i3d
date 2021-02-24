@@ -2,6 +2,8 @@ import torch
 from torch.autograd import grad
 import itertools
 
+import numpy as np
+
 def curvature(grad, hess):
     ''' curvature of a implicit surface (https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas).
     '''
@@ -22,12 +24,20 @@ def curvature(grad, hess):
     grad5d = torch.cat((grad5d, zeros), -1)
 
     F = torch.cat((F, grad5d), -2)
-    grad_norm = torch.norm(grad) 
+    grad_norm = torch.norm(grad, dim=-1) 
 
-    # TODO: Check data so this cleaning is not needed.
-    K = torch.where(grad_norm> 0.00000001, -torch.det(F) / (grad_norm ** 4), torch.zeros_like(grad_norm))
+    Kg = -torch.det(F)[-1].squeeze(-1)/ (grad_norm[0]**4)
+    return Kg
 
-    return K
+
+def mean_curvature(y, x):
+    grad = gradient(y,x)
+    grad_norm = torch.norm(grad, dim=-1)
+    unit_grad = grad.squeeze(-1)/grad_norm.unsqueeze(-1)
+
+    Km = -0.5*divergence(unit_grad,x)
+    return Km
+
 
 def hessian(y, x):
     ''' hessian of y wrt x
