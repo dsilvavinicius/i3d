@@ -8,6 +8,10 @@ import plyfile
 import skimage.measure
 import time
 import torch
+from torch._C import device
+
+import diff_operators
+import modules
 
 
 def create_mesh(
@@ -61,7 +65,9 @@ def create_mesh(
     end = time.time()
     print("sampling takes: %f" % (end - start))
 
-    convert_sdf_samples_to_ply(
+    #also exports the curvatures
+    convert_sdf_samples_to_ply_with_curvatures(
+        decoder,
         sdf_values.data.cpu(),
         voxel_origin,
         voxel_size,
@@ -69,6 +75,99 @@ def create_mesh(
         offset,
         scale,
     )
+    
+    #only exports the coordinates
+    # convert_sdf_samples_to_ply(
+    #     sdf_values.data.cpu(),
+    #     voxel_origin,
+    #     voxel_size,
+    #     ply_filename + ".ply",
+    #     offset,
+    #     scale,    
+    # )
+
+
+def convert_sdf_samples_to_ply_with_curvatures(
+    decoder,
+    pytorch_3d_sdf_tensor,
+    voxel_grid_origin,
+    voxel_size,
+    ply_filename_out,
+    offset=None,
+    scale=None,
+):
+    """
+    Convert sdf samples to .ply
+
+    :param pytorch_3d_sdf_tensor: a torch.FloatTensor of shape (n,n,n)
+    :voxel_grid_origin: a list of three floats: the bottom, left, down origin of the voxel grid
+    :voxel_size: float, the size of the voxels
+    :ply_filename_out: string, path of the filename to save to
+
+    This function adapted from: https://github.com/RobotLocomotion/spartan
+    """
+
+    start_time = time.time()
+
+    numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
+
+    verts, faces, normals, values = np.zeros((0, 3)), np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0)
+    try:
+        verts, faces, normals, values = skimage.measure.marching_cubes_lewiner(
+            numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
+        )
+    except:
+        pass
+
+    # transform from voxel coordinates to camera coordinates
+    # note x and y are flipped in the output of marching_cubes
+    mesh_points = np.zeros_like(verts)
+    mesh_points[:, 0] = voxel_grid_origin[0] + verts[:, 0]
+    mesh_points[:, 1] = voxel_grid_origin[1] + verts[:, 1]
+    mesh_points[:, 2] = voxel_grid_origin[2] + verts[:, 2]
+
+    # apply additional offset and scale
+    if scale is not None:
+        mesh_points = mesh_points / scale
+    if offset is not None:
+        mesh_points = mesh_points - offset
+
+    # try writing to the ply file
+
+    num_verts = verts.shape[0]
+    num_faces = faces.shape[0]
+
+    verts_tuple = np.zeros((num_verts,), dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("quality", "f4")])
+
+    coords = torch.from_numpy(mesh_points).float().cuda()
+
+    sdf_vert_values = decoder(coords)
+    sdf_vert_values.requires_grad = True
+
+    pred_mean_curvature = diff_operators.mean_curvature(sdf_vert_values, coords)
+
+    for i in range(0, num_verts):
+        vertex = np.array([mesh_points[i, 0],mesh_points[i, 1], mesh_points[i, 2],pred_mean_curvature[i]]) 
+        verts_tuple[i] = tuple(vertex)
+
+    faces_building = []
+    for i in range(0, num_faces):
+        faces_building.append(((faces[i, :].tolist(),)))
+    faces_tuple = np.array(faces_building, dtype=[("vertex_indices", "i4", (3,))])
+
+    el_verts = plyfile.PlyElement.describe(verts_tuple, "vertex")
+    el_faces = plyfile.PlyElement.describe(faces_tuple, "face")
+
+    ply_data = plyfile.PlyData([el_verts, el_faces])
+    logging.debug("saving mesh to %s" % (ply_filename_out))
+    ply_data.write(ply_filename_out)
+
+    logging.debug(
+        "converting to ply format and writing to file took {} s".format(
+            time.time() - start_time
+        )
+    )
+
 
 
 def convert_sdf_samples_to_ply(
@@ -124,7 +223,7 @@ def convert_sdf_samples_to_ply(
 
     for i in range(0, num_verts):
         verts_tuple[i] = tuple(mesh_points[i, :])
-
+    
     faces_building = []
     for i in range(0, num_faces):
         faces_building.append(((faces[i, :].tolist(),)))
