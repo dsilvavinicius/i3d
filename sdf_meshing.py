@@ -4,6 +4,7 @@
 
 import logging
 import numpy as np
+from numpy.core.fromnumeric import shape
 import plyfile
 import skimage.measure
 import time
@@ -66,6 +67,83 @@ def create_mesh(
     print("sampling takes: %f" % (end - start))
 
     #also exports the curvatures
+    # convert_sdf_samples_to_ply_with_curvatures(
+    #     decoder,
+    #     sdf_values.data.cpu(),
+    #     voxel_origin,
+    #     voxel_size,
+    #     ply_filename + ".ply",
+    #     offset,
+    #     scale,
+    # )
+    
+    #only exports the coordinates
+    convert_sdf_samples_to_ply(
+        sdf_values.data.cpu(),
+        voxel_origin,
+        voxel_size,
+        ply_filename + ".ply",
+        offset,
+        scale,    
+    )
+
+
+def create_mesh_with_curvatures(
+    decoder, filename, N=256, max_batch=64 ** 3, offset=None, scale=None
+):
+    start = time.time()
+    ply_filename = filename
+
+    decoder.eval()
+
+    # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not the middle
+    voxel_origin = [-1, -1, -1]
+    voxel_size = 2.0 / (N - 1)
+
+    overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
+    samples = torch.zeros(N ** 3, 4)
+
+    # transform first 3 columns
+    # to be the x, y, z index
+    samples[:, 2] = overall_index % N
+    samples[:, 1] = (overall_index.long() / N) % N
+    samples[:, 0] = ((overall_index.long() / N) / N) % N
+
+    # transform first 3 columns
+    # to be the x, y, z coordinate
+    samples[:, 0] = (samples[:, 0] * voxel_size) + voxel_origin[2]
+    samples[:, 1] = (samples[:, 1] * voxel_size) + voxel_origin[1]
+    samples[:, 2] = (samples[:, 2] * voxel_size) + voxel_origin[0]
+
+    num_samples = N ** 3
+
+    samples.requires_grad = False
+
+    head = 0
+
+    while head < num_samples:
+        print(head)
+        sample_subset = samples[head : min(head + max_batch, num_samples), 0:3].cuda()
+
+        #model_in = {'coords': sample_subset}
+        model_in = sample_subset
+        decoder_sample_subset = decoder(model_in)['model_out']
+
+        samples[head : min(head + max_batch, num_samples), 3] = (
+            decoder_sample_subset
+            .squeeze()#.squeeze(1)
+            .detach()
+            .cpu()
+        )
+        head += max_batch
+
+    sdf_values = samples[:, 3]
+    sdf_values = sdf_values.reshape(N, N, N)
+
+    end = time.time()
+    print("sampling takes: %f" % (end - start))
+
+    #also exports the curvatures
     convert_sdf_samples_to_ply_with_curvatures(
         decoder,
         sdf_values.data.cpu(),
@@ -75,17 +153,35 @@ def create_mesh(
         offset,
         scale,
     )
-    
-    #only exports the coordinates
-    # convert_sdf_samples_to_ply(
-    #     sdf_values.data.cpu(),
-    #     voxel_origin,
-    #     voxel_size,
-    #     ply_filename + ".ply",
-    #     offset,
-    #     scale,    
-    # )
 
+def compute_mesh_curvatures(decoder, mesh_points):
+    num_verts = mesh_points.shape[0]
+    coords = torch.from_numpy(mesh_points).float().cuda()
+    pred_curvature = []
+    N = 200
+    for i in range(N):
+        coords_i = coords[int(num_verts*i/N): int(num_verts*(i+1)/N),:]
+        #model_output_i = decoder({'coords': coords_i.unsqueeze(0)}) #to use during training
+        model_output_i = decoder(coords_i.unsqueeze(0))
+
+        coords_i = model_output_i['model_in']
+        sdf_vert_values_i = model_output_i['model_out']
+        
+        #gradient = diff_operators.gradient(sdf_vert_values_i, coords_i)
+        #hessian = diff_operators.hessian(sdf_vert_values_i, coords_i)
+
+        # principal curvatures
+        #pred_min_curvature_i, pred_max_curvature_i = diff_operators.principal_curvature(sdf_vert_values_i, coords_i, gradient, hessian)
+        #pred_curvature_i = pred_max_curvature_i.cpu().detach().numpy()
+        pred_curvature_i = diff_operators.principal_curvature_region_detection(sdf_vert_values_i, coords_i).cpu().detach().numpy()
+        #pred_curvature_i = diff_operators.gaussian_curvature(gradient, hessian).unsqueeze(-1).cpu().detach().numpy()
+        #pred_curvature_i = diff_operators.mean_curvature(sdf_vert_values_i, coords_i).squeeze(0).cpu().detach().numpy()
+        if len(pred_curvature)==0:
+            pred_curvature = pred_curvature_i
+        else:
+            pred_curvature = np.concatenate((pred_curvature, pred_curvature_i), axis=0)
+    
+    return pred_curvature
 
 def convert_sdf_samples_to_ply_with_curvatures(
     decoder,
@@ -139,15 +235,12 @@ def convert_sdf_samples_to_ply_with_curvatures(
 
     verts_tuple = np.zeros((num_verts,), dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("quality", "f4")])
 
-    coords = torch.from_numpy(mesh_points).float().cuda()
-
-    sdf_vert_values = decoder(coords)
-    sdf_vert_values.requires_grad = True
-
-    pred_mean_curvature = diff_operators.mean_curvature(sdf_vert_values, coords)
+    # computing the curvatures of mesh_points ----------------
+    pred_curvatures = compute_mesh_curvatures(decoder, mesh_points)
+    #---------------------------------------------------------
 
     for i in range(0, num_verts):
-        vertex = np.array([mesh_points[i, 0],mesh_points[i, 1], mesh_points[i, 2],pred_mean_curvature[i]]) 
+        vertex = np.array([mesh_points[i, 0],mesh_points[i, 1], mesh_points[i, 2],pred_curvatures[i]]) 
         verts_tuple[i] = tuple(vertex)
 
     faces_building = []

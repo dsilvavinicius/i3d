@@ -10,13 +10,15 @@ import numpy as np
 import os
 import shutil
 
+import sdf_meshing
+
 
 def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_checkpoint, model_dir, loss_fn,
           summary_fn, val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None):
 
     optim = torch.optim.Adam(lr=lr, params=model.parameters())
 
-    # copy settings from Raissi et al. (2019) and here 
+    # copy settings from Raissi et al. (2019) and here
     # https://github.com/maziarraissi/PINNs
     if use_lbfgs:
         optim = torch.optim.LBFGS(lr=lr, params=model.parameters(), max_iter=50000, max_eval=50000,
@@ -49,7 +51,7 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
 
             for step, (model_input, gt) in enumerate(train_dataloader):
                 start_time = time.time()
-            
+
                 model_input = {key: value.cuda() for key, value in model_input.items()}
                 gt = {key: value.cuda() for key, value in gt.items()}
 
@@ -64,7 +66,7 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         losses = loss_fn(model_output, gt)
                         train_loss = 0.
                         for loss_name, loss in losses.items():
-                            train_loss += loss.mean() 
+                            train_loss += loss.mean()
                         train_loss.backward()
                         return train_loss
                     optim.step(closure)
@@ -122,6 +124,13 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         model.train()
 
                 total_steps += 1
+
+            #creating a mesh with curvatures using marching cubes
+            # if epoch == 80:
+            #     print(model_input)
+            #     print(model_output)
+            #     sdf_meshing.create_mesh_with_curvatures(model, 'D:\\Work\\test_logs\\armadillo_tubular\\test_curv', N=512)
+            # # ---------------
 
         torch.save(model.state_dict(),
                    os.path.join(checkpoints_dir, 'model_final.pth'))

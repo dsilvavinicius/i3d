@@ -521,7 +521,7 @@ class PointCloudTubular(Dataset):
         on_surface_normals = self.normals[rand_idcs, :]
 
         #tubular vicinity
-        epsilon = 0.00005
+        epsilon = 0.0001
         in_surface_coords  = on_surface_coords - epsilon*on_surface_normals
         out_surface_coords = on_surface_coords + epsilon*on_surface_normals
 
