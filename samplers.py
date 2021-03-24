@@ -15,7 +15,8 @@ class CurvatureSeqSampler(Sampler):
     """
     def __init__(self, data_source):
         self.data_source = data_source
-        self.sorted_curvatures_idx = np.argsort(np.absolute(self.data_source.curvatures))
+        curvatures = (self.data_source.min_curvatures + self.data_source.max_curvatures) / 2
+        self.sorted_curvatures_idx = np.argsort(np.absolute(curvatures))
 
     def __iter__(self):
         return iter(range(len(self.sorted_curvatures_idx)))
@@ -35,7 +36,8 @@ class CurvatureHistogramSampler(Sampler):
     """
     def __init__(self, data_source):
         self.data_source = data_source
-        self.sorted_curvatures_idx = np.argsort(np.absolute(self.data_source.curvatures))
+        curvatures = (self.data_source.min_curvatures + self.data_source.max_curvatures) / 2
+        self.sorted_curvatures_idx = np.argsort(np.absolute(curvatures))
 
     def __iter__(self):
         return iter(range(len(self.sorted_curvatures_idx)))

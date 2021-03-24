@@ -15,7 +15,7 @@ import utils
 import training
 import loss_functions
 import modules
-from samplers import CurvatureSeqSampler, CurvatureWeightedSampler
+from samplers import CurvatureSeqSampler
 
 
 p = ArgumentParser()
