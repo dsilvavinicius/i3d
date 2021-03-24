@@ -4,7 +4,7 @@ import itertools
 
 import numpy as np
 
-def curvature(grad, hess):
+def gaussian_curvature(grad, hess):
     ''' curvature of a implicit surface (https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas).
     '''
     if(hess[1] == -1):
@@ -26,18 +26,62 @@ def curvature(grad, hess):
     F = torch.cat((F, grad5d), -2)
     grad_norm = torch.norm(grad, dim=-1) 
 
-    Kg = -torch.det(F)[-1].squeeze(-1)/ (grad_norm[0]**4)
+    Kg = -torch.det(F)[-1].squeeze(-1) / (grad_norm[0]**4)
     return Kg
 
 
 def mean_curvature(y, x):
-    grad = gradient(y,x)
+    grad = gradient(y, x)
     grad_norm = torch.norm(grad, dim=-1)
     unit_grad = grad.squeeze(-1)/grad_norm.unsqueeze(-1)
 
-    Km = -0.5*divergence(unit_grad,x)
+    Km = -0.5*divergence(unit_grad, x)
     return Km
 
+def principal_curvature(y, x, grad, hess):
+    Kg = gaussian_curvature(grad,hess).unsqueeze(-1)
+    Km = mean_curvature(y,x).squeeze(0)
+    A = torch.sqrt(torch.abs(torch.pow(Km,2) - Kg) + 0.0001)
+    Kmax = Km + A
+    Kmin = Km - A
+    return Kmin, Kmax
+
+def principal_curvature_region_detection(y,x):
+    grad = gradient(y, x)
+    hess = hessian(y, x)
+
+    # principal curvatures
+    min_curvature, max_curvature = principal_curvature(y, x, grad, hess)
+
+    #Harris detector formula
+    return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
+
+def tensor_curvature(y, x):
+    grad = gradient(y, x)
+    grad_norm = torch.norm(grad, dim=-1)
+    unit_grad = grad.squeeze(-1)/grad_norm.unsqueeze(-1)
+
+    T = -jacobian(unit_grad, x)[0]
+
+    print(T)
+    e, v = torch.eig(T, eigenvectors=True)
+
+    print(e)
+    print(v)
+
+    return T
+
+def gauss_bonnet_integral(grad,hess):
+    Kg = gaussian_curvature(grad,hess).unsqueeze(-1)
+    
+    # remenber to restrict to the surface
+    #Kg = torch.where(gt_sdf != -1, Kg, torch.zeros_like(Kg))
+    
+    aux = gradient.squeeze(-1)/torch.abs(gradient[:,:,0].unsqueeze(-1))
+
+    Kg = Kg*(aux.norm(dim=-1).unsqueeze(-1))
+    return torch.sum(Kg)/(Kg.shape[1]*0.5)
+ 
 
 def hessian(y, x):
     ''' hessian of y wrt x
@@ -78,7 +122,6 @@ def gradient(y, x, grad_outputs=None):
         grad_outputs = torch.ones_like(y)
     grad = torch.autograd.grad(y, [x], grad_outputs=grad_outputs, create_graph=True)[0]
     return grad
-
 
 def jacobian(y, x):
     ''' jacobian of y wrt x '''

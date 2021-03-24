@@ -1,9 +1,11 @@
 import torch
+from torch.functional import norm
 import torch.nn.functional as F
 
 import diff_operators
 import modules
 
+#import torch as th
 
 def image_mse(mask, model_output, gt):
     if mask is None:
@@ -211,7 +213,7 @@ def helmholtz_pml(model_output, gt):
             'data_term': torch.abs(data_term).sum() * batch_size / 1}
 
 
-def sdf(model_output, gt):
+def sdf_original(model_output, gt):
     '''
        x: batch of input coordinates
        y: usually the output of the trial_soln function
@@ -219,21 +221,43 @@ def sdf(model_output, gt):
     gt_sdf = gt['sdf']
     gt_normals = gt['normals']
 
-    # clamp threshold
-    curv_threshold = 10000.
-    curv_loss_threshold = 100000.
+    coords   = model_output['model_in']
+    pred_sdf = model_output['model_out']
 
-    gt_curvature = gt['curvature']
+    gradient = diff_operators.gradient(pred_sdf, coords)
+    grad_norm = gradient.norm(dim=-1)
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint    = torch.where(gt_sdf != -1, (gt_sdf - pred_sdf)**2, torch.zeros_like(pred_sdf))
+    inter_constraint  = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint   = torch.where(gt_sdf != -1, (grad_norm - 1.)**2, torch.zeros_like(pred_sdf))
+    #grad_constraint   = (gradient.norm(dim=-1) - 1.)**2
+    
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf': torch.abs(sdf_constraint).mean() * 3e4, #3e3,  # 1e4      # 3e3
+            'inter': inter_constraint.mean() * 1e1,  # 1e2                   # 1e3
+            'normal_constraint': normal_constraint.mean() * 1e3,  # 1e2
+            'grad_constraint': grad_constraint.mean() * 1e1}
+
+
+def sdf_mean_curvature(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    gt_min_curvature = gt['min_curvature']
+    gt_max_curvature = gt['max_curvature']
+
+    gt_curvature = 0.5*(gt_min_curvature + gt_max_curvature)
     
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
 
     gradient = diff_operators.gradient(pred_sdf, coords)
-    hessian = diff_operators.hessian(pred_sdf, coords)
-
-    # gaussian curvature
-    #pred_curvature = diff_operators.curvature(gradient, hessian).unsqueeze(-1)
-    #curvature_diff = torch.tanh(0.01*pred_curvature) - torch.tanh(0.01*gt_curvature)
  
     # mean curvature
     pred_curvature = diff_operators.mean_curvature(pred_sdf, coords)
@@ -258,4 +282,152 @@ def sdf(model_output, gt):
             'grad_constraint': grad_constraint.mean() * 5e1,
             'curv_constraint': curv_constraint.mean() }
 
+
 # inter = 3e3 for ReLU-PE
+
+def sdf_gaussian_curvature(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    gt_min_curvature = gt['min_curvature']
+    gt_max_curvature = gt['max_curvature']
+
+    gt_curvature = gt_min_curvature*gt_max_curvature
+    
+    coords = model_output['model_in']
+    pred_sdf = model_output['model_out']
+
+    gradient = diff_operators.gradient(pred_sdf, coords)
+    hessian = diff_operators.hessian(pred_sdf, coords)
+
+    # gaussian curvature
+    pred_curvature = diff_operators.gaussian_curvature(gradient, hessian).unsqueeze(-1)
+    curvature_diff = torch.tanh(0.01*pred_curvature) - torch.tanh(0.01*gt_curvature)
+
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
+    inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint = (gradient.norm(dim=-1) - 1)**2
+    curv_constraint = torch.where(gt_sdf != -1, torch.pow(curvature_diff, 2), torch.zeros_like(pred_curvature))
+
+    abs_curvature = torch.abs(gt_curvature)
+    normal_constraint = torch.where(abs_curvature> 5., normal_constraint, torch.zeros_like(gradient[..., :1]))
+    curv_constraint = torch.where(abs_curvature> 10., curv_constraint, torch.zeros_like(pred_curvature))
+
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3
+            'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
+            'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
+            'grad_constraint': grad_constraint.mean() * 5e1,
+            'curv_constraint': curv_constraint.mean() }
+
+
+def sdf_principal_curvatures(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    #th.autograd.set_detect_anomaly(True)
+
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    gt_min_curvature = gt['min_curvature']
+    gt_max_curvature = gt['max_curvature']
+    
+    coords = model_output['model_in']
+    pred_sdf = model_output['model_out']
+    
+    gradient = diff_operators.gradient(pred_sdf, coords)
+    hessian = diff_operators.hessian(pred_sdf, coords)
+
+    # principal curvatures
+    pred_min_curvature, pred_max_curvature = diff_operators.principal_curvature(pred_sdf, coords, gradient, hessian)
+    
+    min_curvature_diff = torch.tanh(pred_min_curvature) - torch.tanh(gt_min_curvature)
+    max_curvature_diff = torch.tanh(pred_max_curvature) - torch.tanh(gt_max_curvature)
+    
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
+    inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint = torch.where(gt_sdf != -1, (gradient.norm(dim=-1) - 1.)**2, torch.zeros_like(pred_sdf))
+    min_curv_constraint = torch.where(gt_sdf != -1, min_curvature_diff**2, torch.zeros_like(min_curvature_diff))
+    max_curv_constraint = torch.where(gt_sdf != -1, max_curvature_diff**2, torch.zeros_like(max_curvature_diff))
+
+    #removing regions with lower curvatures
+    abs_min_curvature = torch.abs(gt_min_curvature)
+    abs_max_curvature = torch.abs(gt_max_curvature)
+
+    min_curv_constraint =   torch.where(abs_min_curvature > 10., min_curv_constraint, torch.zeros_like(min_curvature_diff))
+    max_curv_constraint =   torch.where(abs_max_curvature > 10., max_curv_constraint, torch.zeros_like(max_curvature_diff))
+
+    #removing umbilical points
+    diff_curvs = torch.abs(gt_min_curvature-gt_max_curvature)
+
+    min_curv_constraint =   torch.where(diff_curvs > 5., min_curv_constraint, torch.zeros_like(min_curvature_diff))
+    max_curv_constraint =   torch.where(diff_curvs > 5., max_curv_constraint, torch.zeros_like(max_curvature_diff))
+
+    # Exp      # Lapl
+    # -----------------
+    return {
+            'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3
+            'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
+            'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
+            'grad_constraint': grad_constraint.mean() * 5e1,
+            'min_curv_constraint': min_curv_constraint.mean() * 0.5,
+            'max_curv_constraint': max_curv_constraint.mean() * 0.5#,
+           # 'gauss_bonnet_constraint': gauss_bonnet_constraint * 0.002
+            }
+
+
+
+
+def sdf_tensor_curvature(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    gt_min_curvature = gt['min_curvature']
+    gt_max_curvature = gt['max_curvature']
+
+    gt_curvature = 0.5*(gt_min_curvature + gt_max_curvature)
+    
+    coords = model_output['model_in']
+    pred_sdf = model_output['model_out']
+
+    tensor =diff_operators.tensor_curvature(pred_sdf, coords)
+
+    gradient = diff_operators.gradient(pred_sdf, coords)
+ 
+    # mean curvature
+    pred_curvature = diff_operators.mean_curvature(pred_sdf, coords)
+    curvature_diff = torch.where(gt_sdf != -1, torch.tanh(1000*pred_curvature) - torch.tanh(1000*gt_curvature), torch.zeros_like(pred_curvature))
+
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
+    inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint = (gradient.norm(dim=-1) - 1)**2
+    curv_constraint = torch.where(gt_sdf != -1, torch.pow(curvature_diff, 2), torch.zeros_like(pred_curvature))
+
+    abs_curvature = torch.abs(gt_curvature)
+    normal_constraint = torch.where(abs_curvature> 5., normal_constraint, torch.zeros_like(gradient[..., :1]))
+    curv_constraint = torch.where(abs_curvature> 10., curv_constraint, torch.zeros_like(pred_curvature))
+
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf': torch.abs(sdf_constraint).mean() * 3e3,  # 1e4      # 3e3
+            'inter': inter_constraint.mean() * 1e2,  # 1e2                   # 1e3
+            'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
+            'grad_constraint': grad_constraint.mean() * 5e1,
+            'curv_constraint': curv_constraint.mean() }

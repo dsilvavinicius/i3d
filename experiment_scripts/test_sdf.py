@@ -44,7 +44,7 @@ class SDFDecoder(torch.nn.Module):
 
     def forward(self, coords):
         model_in = {'coords': coords}
-        return self.model(model_in)['model_out']
+        return self.model(model_in)#['model_out']
 
 
 sdf_decoder = SDFDecoder()
@@ -52,4 +52,5 @@ sdf_decoder = SDFDecoder()
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 utils.cond_mkdir(root_path)
 
-sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
+#sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
+sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
