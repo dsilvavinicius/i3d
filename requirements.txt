@@ -1,6 +1,7 @@
 torch
 torchvision
 numpy
+plyfile
 h5py
 opencv-python
 cmapy
