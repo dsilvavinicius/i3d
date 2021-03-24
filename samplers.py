@@ -1,6 +1,7 @@
 # coding: utf-8
 
 from torch.utils.data import Sampler
+import numpy as np
 
 
 class CurvatureSeqSampler(Sampler):
@@ -23,9 +24,9 @@ class CurvatureSeqSampler(Sampler):
         return len(self.data_source)
 
 
-class CurvatureWeightedSampler(Sampler):
-    """Sampler that orders the data samples by absolute value of curvature and returns
-    them given a probability.
+class CurvatureHistogramSampler(Sampler):
+    """Sampler that orders the data samples by absolute value of curvature and
+    returns them given a probability.
 
     Parameters
     ----------
@@ -41,3 +42,6 @@ class CurvatureWeightedSampler(Sampler):
 
     def __len__(self):
         return len(self.data_source)
+
+    def update_weights(self, weights):
+        pass

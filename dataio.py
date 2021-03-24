@@ -401,6 +401,9 @@ class PointCloud(Dataset):
         #self.normals = point_cloud[:, 4:7]
 
         #exporting ply (point, curvatures, normal):  x, y, z, k1, k2, nx, ny, nz
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 3]) < 10000]
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 4]) < 10000]
+
         coords = point_cloud[:, :3]
         min_curvatures = point_cloud[:, 4]
         max_curvatures = point_cloud[:, 3]

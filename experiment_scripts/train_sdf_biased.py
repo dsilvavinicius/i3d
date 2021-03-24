@@ -5,6 +5,7 @@ import os
 import numpy as np
 from torch.utils.data import DataLoader, Sampler
 from configargparse import ArgumentParser
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -14,8 +15,7 @@ import utils
 import training
 import loss_functions
 import modules
-
-
+from samplers import CurvatureSeqSampler, CurvatureWeightedSampler
 
 
 p = ArgumentParser()
@@ -65,7 +65,7 @@ else:
 model.cuda()
 
 # Define the loss
-loss_fn = loss_functions.sdf
+loss_fn = loss_functions.sdf_original
 summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
