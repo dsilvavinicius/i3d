@@ -40,6 +40,12 @@ p.add_argument('--model_type', type=str, default='sine',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
 p.add_argument('--point_cloud_path', type=str, default='/home/sitzmann/data/point_cloud.xyz',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
+p.add_argument(
+    "--sampler_type",
+    type=str,
+    default="biased-linear",
+    help="Options are \"biased-seq\", \"biased-histogram\" and \"random\""
+)
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
@@ -49,7 +55,13 @@ sdf_dataset = dataio.PointCloud(
     on_surface_points=opt.batch_size
 )
 
-curv_sampler = CurvatureSeqSampler(sdf_dataset)
+if opt.sampler_type == "biased-seq":
+    curv_sampler = CurvatureSeqSampler(sdf_dataset)
+elif opt.sampler_type == "biased-histogram":
+    raise NotImplementedError
+else:
+    raise NotImplementedError
+
 dataloader = DataLoader(
     sdf_dataset,
     sampler=curv_sampler,
