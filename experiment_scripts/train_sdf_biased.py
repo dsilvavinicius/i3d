@@ -2,10 +2,8 @@
 
 import sys
 import os
-import numpy as np
 from torch.utils.data import DataLoader, BatchSampler
 from configargparse import ArgumentParser
-import matplotlib.pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

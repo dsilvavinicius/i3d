@@ -619,12 +619,12 @@ def init_weights_xavier(m):
             nn.init.xavier_normal_(m.weight)
 
 
-def sine_init(m):
+def sine_init(m, freq=30):
     with torch.no_grad():
         if hasattr(m, 'weight'):
             num_input = m.weight.size(-1)
             # See supplement Sec. 1.5 for discussion of factor 30
-            m.weight.uniform_(-np.sqrt(6 / num_input) / 60, np.sqrt(6 / num_input) / 60)
+            m.weight.uniform_(-np.sqrt(6 / num_input) / freq, np.sqrt(6 / num_input) / freq)
 
 
 def first_layer_sine_init(m):
