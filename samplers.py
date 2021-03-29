@@ -19,7 +19,7 @@ class CurvatureSeqSampler(Sampler):
         self.sorted_curvatures_idx = np.argsort(np.absolute(curvatures))
 
     def __iter__(self):
-        return iter(range(len(self.sorted_curvatures_idx)))
+        return iter(self.sorted_curvatures_idx)
 
     def __len__(self):
         return len(self.data_source)

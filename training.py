@@ -52,6 +52,16 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
             for step, (model_input, gt) in enumerate(train_dataloader):
                 start_time = time.time()
 
+                # For batch samplers, the input is in shape
+                # [batch_size, n_samples, n_features], we must reshape it to
+                # [1, batch_size * n_samples, n_features].
+                b, n, d = model_input["coords"].size()
+                if b > 1:
+                    model_input["coords"] = model_input["coords"].reshape(1, -1, d)
+                    for k, v in gt.items():
+                        _, _, d = v.size()
+                        gt[k] = v.reshape(1, -1, d)
+
                 model_input = {key: value.cuda() for key, value in model_input.items()}
                 gt = {key: value.cuda() for key, value in gt.items()}
 

@@ -3,7 +3,7 @@
 import sys
 import os
 import numpy as np
-from torch.utils.data import DataLoader, Sampler
+from torch.utils.data import DataLoader, BatchSampler
 from configargparse import ArgumentParser
 import matplotlib.pyplot as plt
 
@@ -43,31 +43,36 @@ p.add_argument('--point_cloud_path', type=str, default='/home/sitzmann/data/poin
 p.add_argument(
     "--sampler_type",
     type=str,
-    default="biased-linear",
+    default="biased-seq",
     help="Options are \"biased-seq\", \"biased-histogram\" and \"random\""
 )
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
 
-sdf_dataset = dataio.PointCloud(
-    opt.point_cloud_path,
-    on_surface_points=opt.batch_size
-)
+sdf_dataset = dataio.PointCloudNonRandom(opt.point_cloud_path)
 
 if opt.sampler_type == "biased-seq":
-    curv_sampler = CurvatureSeqSampler(sdf_dataset)
+    sampler = CurvatureSeqSampler(sdf_dataset)
 elif opt.sampler_type == "biased-histogram":
     raise NotImplementedError
 else:
     raise NotImplementedError
 
-dataloader = DataLoader(
-    sdf_dataset,
-    sampler=curv_sampler,
-    pin_memory=True,
-    num_workers=0
-)
+if opt.batch_size > 1:
+    dataloader = DataLoader(
+        sdf_dataset,
+        batch_sampler=BatchSampler(sampler, batch_size=opt.batch_size, drop_last=False),
+        pin_memory=True,
+        num_workers=0,
+    )
+else:
+    dataloader = DataLoader(
+        sdf_dataset,
+        sampler=sampler,
+        pin_memory=True,
+        num_workers=0,
+    )
 
 # Define the model.
 if opt.model_type == 'nerf':
