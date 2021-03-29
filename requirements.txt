@@ -10,3 +10,4 @@ tqdm
 sk-video
 scikit-image
 matplotlib
+configargparse
