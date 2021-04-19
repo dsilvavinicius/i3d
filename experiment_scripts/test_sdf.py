@@ -10,6 +10,8 @@ import torch
 import modules, utils
 import sdf_meshing
 import configargparse
+import diff_operators
+import implicit_functions
 
 p = configargparse.ArgumentParser()
 p.add('-c', '--config_filepath', required=False, is_config_file=True, help='Path to config file.')
@@ -47,10 +49,12 @@ class SDFDecoder(torch.nn.Module):
         return self.model(model_in)#['model_out']
 
 
-sdf_decoder = SDFDecoder()
+#sdf_decoder = SDFDecoder()
+#sdf_decoder = implicit_functions.torus()
+sdf_decoder = implicit_functions.double_torus()
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 utils.cond_mkdir(root_path)
 
-#sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
-sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test_curv'), N=opt.resolution)
+#sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_epoch_0100'), N=opt.resolution)
+sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test_double_torus_umbilical'), N=opt.resolution)

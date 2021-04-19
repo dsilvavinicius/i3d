@@ -39,7 +39,11 @@ opt = p.parse_args()
 
 
 #sdf_dataset = dataio.PointCloud(opt.point_cloud_path, on_surface_points=opt.batch_size)
-sdf_dataset = dataio.PointCloudTubular(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+#sdf_dataset = dataio.PointCloudPrincipalDirections(opt.point_cloud_path, on_surface_points=opt.batch_size)
+#sdf_dataset = dataio.PointCloudTubularCurvatures(opt.point_cloud_path, on_surface_points=opt.batch_size)
+#sdf_dataset = dataio.PointCloudTubular(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+sdf_dataset = dataio.PointCloudImplictFunctions(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+
 dataloader = DataLoader(sdf_dataset, shuffle=True, batch_size=1, pin_memory=True, num_workers=0)
 
 # Define the model.
@@ -54,7 +58,11 @@ model.cuda()
 #loss_fn = loss_functions.sdf_mean_curvature
 #loss_fn = loss_functions.sdf_gaussian_curvature
 #loss_fn = loss_functions.sdf_principal_curvatures
-loss_fn = loss_functions.sdf_original
+#loss_fn = loss_functions.sdf_original
+#loss_fn = loss_functions.sdf_principal_directions
+#loss_fn = loss_functions.sdf_principal_curvature_segmentation
+#loss_fn = loss_functions.sdf_original_on_surface
+loss_fn = loss_functions.implicit_function
 summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)

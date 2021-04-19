@@ -12,9 +12,14 @@ import skimage
 import skimage.filters
 import skvideo.io
 import torch
+import diff_operators
+import implicit_functions
+
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
+
+
 
 
 def get_mgrid(sidelen, dim=2):
@@ -393,6 +398,18 @@ class PointCloud(Dataset):
 
         print("Loading point cloud")
         point_cloud = np.genfromtxt(pointcloud_path)
+
+        k_range = 5000
+        n = point_cloud.shape[0]
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 3]) <= k_range]
+        out_min_k1 = n - point_cloud.shape[0]
+
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 4]) <= k_range]
+        out_min_k2 = n - point_cloud.shape[0] + out_min_k1
+
+        print(f"[WARN] Removed {out_min_k1} with abs(k1) > {k_range}.")
+        print(f"[WARN] Removed {out_min_k2} with abs(k2) > {k_range}.")
+
         print("Finished loading point cloud")
 
         #exporting ply (point, curvature, normal):  x, y, z, k, nx, ny, nz
@@ -547,6 +564,261 @@ class PointCloudTubular(Dataset):
 
         return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
                                                               'normals': torch.from_numpy(normals).float()}
+
+
+class PointCloudTubularCurvatures(Dataset):
+    def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
+        super().__init__()
+
+        print("Loading point cloud")
+        point_cloud = np.genfromtxt(pointcloud_path)
+        
+        k_range = 5000
+        n = point_cloud.shape[0]
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 3]) <= k_range]
+        out_min_k1 = n - point_cloud.shape[0]
+
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 4]) <= k_range]
+        out_min_k2 = n - point_cloud.shape[0] + out_min_k1
+
+        print(f"[WARN] Removed {out_min_k1} with abs(k1) > {k_range}.")
+        print(f"[WARN] Removed {out_min_k2} with abs(k2) > {k_range}.")
+        
+        print("Finished loading point cloud")
+
+        #exporting ply (point, curvatures, normal):  x, y, z, k1, k2, nx, ny, nz
+        coords = point_cloud[:, :3]
+        min_curvatures = point_cloud[:, 4]
+        max_curvatures = point_cloud[:, 3]
+        self.normals = point_cloud[:, 5:8]
+
+        # Reshape point cloud such that it lies in bounding box of (-1, 1) (distorts geometry, but makes for high
+        # sample efficiency)
+        coords -= np.mean(coords, axis=0, keepdims=True)
+        if keep_aspect_ratio:
+            coord_max = np.amax(coords)
+            coord_min = np.amin(coords)
+        else:
+            coord_max = np.amax(coords, axis=0, keepdims=True)
+            coord_min = np.amin(coords, axis=0, keepdims=True)
+
+        self.coords = (coords - coord_min) / (coord_max - coord_min)
+        self.coords -= 0.5
+        self.coords *= 2.
+
+        self.min_curvatures = min_curvatures
+        self.max_curvatures = max_curvatures
+
+        self.on_surface_points = on_surface_points
+
+    def __len__(self):
+        return self.coords.shape[0] // self.on_surface_points
+
+    def __getitem__(self, idx):
+        point_cloud_size = self.coords.shape[0]
+
+        off_surface_samples = self.on_surface_points 
+        in_surface_samples  = self.on_surface_points  
+        out_surface_samples = self.on_surface_points 
+        total_samples = in_surface_samples + self.on_surface_points + out_surface_samples + off_surface_samples
+      
+        # Random coords
+        rand_idcs = np.random.choice(point_cloud_size, size=self.on_surface_points)
+
+        on_surface_coords = self.coords[rand_idcs, :]
+        on_surface_normals = self.normals[rand_idcs, :]
+        on_surface_min_curvature = np.expand_dims(self.min_curvatures[rand_idcs],-1)
+        on_surface_max_curvature = np.expand_dims(self.max_curvatures[rand_idcs],-1)
+
+        
+        #tubular vicinity using curvature radius
+        epsilon = 0.0005
+        curvature_radius = 1./(np.maximum(np.absolute(on_surface_min_curvature), np.absolute(on_surface_max_curvature))) 
+        curvature_radio = np.min(curvature_radius)
+        curvature_radio = np.minimum(curvature_radio, epsilon)
+       
+        in_surface_coords  = on_surface_coords - curvature_radio*on_surface_normals
+        out_surface_coords = on_surface_coords + curvature_radio*on_surface_normals
+
+        in_surface_min_curvature, in_surface_max_curvature = diff_operators.principal_curvature_parallel_surface(on_surface_min_curvature,
+                                                                                                                 on_surface_max_curvature, -curvature_radio)
+        out_surface_min_curvature, out_surface_max_curvature = diff_operators.principal_curvature_parallel_surface(on_surface_min_curvature,
+                                                                                                                   on_surface_max_curvature, curvature_radio)
+
+        off_surface_coords = np.random.uniform(-1, 1, size=(off_surface_samples, 3))
+        off_surface_normals = np.ones((off_surface_samples, 3)) * -1
+        off_surface_min_curvature = np.zeros_like(on_surface_min_curvature)
+        off_surface_max_curvature = np.zeros_like(on_surface_max_curvature)
+        # We consider the curvature of the sphere centered in the origin with radius equal to the norm of the coordinate.
+        # off_surface_curvature = 1 / (np.linalg.norm(off_surface_coords, axis=1) ** 2)
+
+        sdf = np.zeros((total_samples, 1))#on-surface = 0 
+        sdf[in_surface_samples + self.on_surface_points + out_surface_samples:, :] = -1  # off-surface = -1
+        sdf[in_surface_samples + self.on_surface_points : in_surface_samples +  self.on_surface_points + out_surface_samples , :] = curvature_radio  # out-surface = epsilon
+        sdf[ : in_surface_samples , :] = -curvature_radio  # in-surface = -epsilon
+
+        # coordinates of the neighborhood of the tubular vicinity + off_surface
+        coords = np.concatenate((in_surface_coords, on_surface_coords), axis=0)
+        coords = np.concatenate((coords, out_surface_coords), axis=0)
+        coords = np.concatenate((coords, off_surface_coords), axis=0)
+
+        # duplicate the normals
+        normals = np.concatenate((on_surface_normals, on_surface_normals), axis=0)
+        normals = np.concatenate((normals, on_surface_normals), axis=0)
+        normals = np.concatenate((normals, off_surface_normals), axis=0)
+
+        min_curvature = np.concatenate((in_surface_min_curvature, on_surface_min_curvature))
+        min_curvature = np.concatenate((min_curvature, out_surface_min_curvature))
+        min_curvature = np.concatenate((min_curvature, off_surface_min_curvature))
+        #min_curvature = np.expand_dims(min_curvature, -1)
+
+        max_curvature = np.concatenate((in_surface_max_curvature, on_surface_max_curvature))
+        max_curvature = np.concatenate((max_curvature, out_surface_max_curvature))
+        max_curvature = np.concatenate((max_curvature, off_surface_max_curvature))
+        #max_curvature = np.expand_dims(max_curvature, -1)
+
+
+        return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
+                                                              'normals': torch.from_numpy(normals).float(),
+                                                              'min_curvature': torch.from_numpy(min_curvature).float(),
+                                                              'max_curvature': torch.from_numpy(max_curvature).float()}
+
+
+class PointCloudPrincipalDirections(Dataset):
+    def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
+        super().__init__()
+
+        print("Loading point cloud")
+        point_cloud = np.genfromtxt(pointcloud_path)
+
+        k_range = 5000
+        n = point_cloud.shape[0]
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 3]) <= k_range]
+        out_min_k1 = n - point_cloud.shape[0]
+
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 4]) <= k_range]
+        out_min_k2 = n - point_cloud.shape[0] + out_min_k1
+
+        print(f"[WARN] Removed {out_min_k1} with abs(k1) > {k_range}.")
+        print(f"[WARN] Removed {out_min_k2} with abs(k2) > {k_range}.")
+
+        print("Finished loading point cloud")
+
+        #exporting ply (point, curvatures, normal, principal direction):  x, y, z, k1, k2, nx, ny, nz, kx, ky, kz
+        coords = point_cloud[:, :3]
+        self.min_curvatures = point_cloud[:, 4]
+        self.max_curvatures = point_cloud[:, 3]
+        self.normals   = point_cloud[:, 5:8]
+        self.principal_directions = point_cloud[:, 8:11]
+
+        # Reshape point cloud such that it lies in bounding box of (-1, 1) (distorts geometry, but makes for high
+        # sample efficiency)
+        coords -= np.mean(coords, axis=0, keepdims=True)
+        if keep_aspect_ratio:
+            coord_max = np.amax(coords)
+            coord_min = np.amin(coords)
+        else:
+            coord_max = np.amax(coords, axis=0, keepdims=True)
+            coord_min = np.amin(coords, axis=0, keepdims=True)
+
+        self.coords = (coords - coord_min) / (coord_max - coord_min)
+        self.coords -= 0.5
+        self.coords *= 2.
+
+        self.on_surface_points = on_surface_points
+
+    def __len__(self):
+        return self.coords.shape[0] // self.on_surface_points
+
+    def __getitem__(self, idx):
+        point_cloud_size = self.coords.shape[0]
+
+        off_surface_samples = self.on_surface_points  # **2
+        total_samples = self.on_surface_points + off_surface_samples
+
+        # Random coords
+        rand_idcs = np.random.choice(point_cloud_size, size=self.on_surface_points)
+
+        on_surface_coords = self.coords[rand_idcs, :]
+        on_surface_normals = self.normals[rand_idcs, :]
+        on_surface_min_curvature = self.min_curvatures[rand_idcs]
+        on_surface_max_curvature = self.max_curvatures[rand_idcs]
+        on_surface_principal_directions = self.principal_directions[rand_idcs, :]
+
+        off_surface_coords = np.random.uniform(-1, 1, size=(off_surface_samples, 3))
+        off_surface_normals = np.ones((off_surface_samples, 3)) * -1
+        off_surface_min_curvature = np.zeros((off_surface_samples))
+        off_surface_max_curvature = np.zeros((off_surface_samples))
+        off_surface_principal_directions = np.ones((off_surface_samples, 3)) * -1
+
+        # We consider the curvature of the sphere centered in the origin with radius equal to the norm of the coordinate.
+        # off_surface_curvature = 1 / (np.linalg.norm(off_surface_coords, axis=1) ** 2)
+
+        sdf = np.zeros((total_samples, 1))  # on-surface = 0
+        sdf[self.on_surface_points:, :] = -1  # off-surface = -1
+
+        coords = np.concatenate((on_surface_coords, off_surface_coords), axis=0)
+        normals = np.concatenate((on_surface_normals, off_surface_normals), axis=0)
+        min_curvature = np.concatenate((on_surface_min_curvature, off_surface_min_curvature))
+        min_curvature = np.expand_dims(min_curvature, -1)
+        max_curvature = np.concatenate((on_surface_max_curvature, off_surface_max_curvature))
+        max_curvature = np.expand_dims(max_curvature, -1)
+        principal_directions = np.concatenate((on_surface_principal_directions, off_surface_principal_directions), axis=0)
+        
+
+
+        return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
+                                                              'normals': torch.from_numpy(normals).float(),
+                                                              'min_curvature': torch.from_numpy(min_curvature).float(),
+                                                              'max_curvature': torch.from_numpy(max_curvature).float(),
+                                                              'principal_directions': torch.from_numpy(principal_directions).float()}
+
+
+
+class PointCloudImplictFunctions(Dataset):
+    def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
+        super().__init__()
+       
+        self.coords = np.random.uniform(-1, 1, size=(100000, 3))
+        self.points = on_surface_points
+
+    def __len__(self):
+        return self.coords.shape[0] // self.points
+
+    def __getitem__(self, idx):
+        point_cloud_size = self.coords.shape[0]
+
+        rand_idcs = np.random.choice(point_cloud_size, size=self.points)
+
+        coords = torch.from_numpy(self.coords[rand_idcs, :]).float().unsqueeze(0)
+
+        #function = implicit_functions.elipsoid()
+        function = implicit_functions.double_torus()
+        function.eval()
+        coord_values = function(coords)
+
+        coords = coord_values['model_in']
+        values = coord_values['model_out']#.unsqueeze(0)
+        
+        gradient = diff_operators.gradient(values,coords)#np.ones((off_surface_samples, 3)) * -1
+        hessian  = diff_operators.hessian(values,coords)
+        min_curvature, max_curvature = diff_operators.principal_curvature(values,coords,gradient,hessian)
+        principal_directions = diff_operators.principal_directions(gradient,hessian[0])[0]
+
+        # print(coords[0].shape)
+        # print(values[0].shape)
+        # print(gradient[0].shape)
+        # print(min_curvature.shape)
+        # print(principal_directions[0].shape)
+        
+
+        return {'coords': coords[0]}, {'sdf': values[0].cpu(),
+                                    'normals': gradient[0].cpu(),
+                                    'min_curvature': min_curvature.cpu(),
+                                    'max_curvature': max_curvature.cpu(),
+                                    'principal_directions': principal_directions[0].cpu()}
+
+
 
 
 class Video(Dataset):
