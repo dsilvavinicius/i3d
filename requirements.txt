@@ -11,3 +11,5 @@ sk-video
 scikit-image
 matplotlib
 configargparse
+trimesh
+mesh-to-sdf
