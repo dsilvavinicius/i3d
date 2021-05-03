@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
 
 
@@ -7,6 +7,10 @@ import os
 import numpy as np
 import pyrender
 import sys
+
+
+def toggle_mesh_vis(viewer, mesh):
+    mesh.is_visible = not mesh.is_visible
 
 
 parser = argparse.ArgumentParser(
@@ -24,12 +28,38 @@ if not os.path.exists(args.input_path):
 
 samples = np.loadtxt(args.input_path)
 
-colors = np.zeros((samples.shape[0], 3))
-colors[samples[:, -1] < 0, 0] = 1
-colors[samples[:, -1] > 0, 1] = 1
+surf_samples = samples[samples[:, -1] == 0, :]
+int_samples = samples[samples[:, -1] < 0, :]
+ext_samples = samples[samples[:, -1] > 0, :]
 
-cloud = pyrender.Mesh.from_points(samples[:, :3], colors=colors)
+surf_cloud = pyrender.Mesh.from_points(
+    points=surf_samples[:, :3],
+    normals=surf_samples[:, 3:6],
+    colors=np.zeros((surf_samples.shape[0], 3))
+)
+
+int_cloud = pyrender.Mesh.from_points(
+    points=int_samples[:, :3],
+    normals=int_samples[:, 3:6],
+    colors = np.zeros((int_samples.shape[0], 3)) + [1, 0, 0]
+)
+
+ext_cloud = pyrender.Mesh.from_points(
+    points=ext_samples[:, :3],
+    normals=ext_samples[:, 3:6],
+    colors=np.zeros((ext_samples.shape[0], 3)) + [0, 1, 0]
+)
+
+light = pyrender.PointLight(intensity=500)
+
 scene = pyrender.Scene()
-scene.add(cloud)
-viewer = pyrender.Viewer(scene, use_raymond_lighting=True,
-                         point_size=3)
+scene.add(surf_cloud)
+scene.add(int_cloud)
+scene.add(ext_cloud)
+scene.add(light)
+viewer = pyrender.Viewer(scene,
+                         point_size=2,
+                         use_raymond_lighting=True,
+                         registered_keys={"u": (toggle_mesh_vis, [surf_cloud]),
+                                          "i": (toggle_mesh_vis, [int_cloud]),
+                                          "e": (toggle_mesh_vis, [ext_cloud])})
