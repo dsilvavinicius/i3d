@@ -41,7 +41,7 @@ surf_cloud = pyrender.Mesh.from_points(
 int_cloud = pyrender.Mesh.from_points(
     points=int_samples[:, :3],
     normals=int_samples[:, 3:6],
-    colors = np.zeros((int_samples.shape[0], 3)) + [1, 0, 0]
+    colors=np.zeros((int_samples.shape[0], 3)) + [1, 0, 0]
 )
 
 ext_cloud = pyrender.Mesh.from_points(
@@ -57,9 +57,11 @@ scene.add(surf_cloud)
 scene.add(int_cloud)
 scene.add(ext_cloud)
 scene.add(light)
-viewer = pyrender.Viewer(scene,
-                         point_size=2,
-                         use_raymond_lighting=True,
-                         registered_keys={"u": (toggle_mesh_vis, [surf_cloud]),
-                                          "i": (toggle_mesh_vis, [int_cloud]),
-                                          "e": (toggle_mesh_vis, [ext_cloud])})
+viewer = pyrender.Viewer(
+    scene,
+    point_size=2,
+    use_raymond_lighting=True,
+    registered_keys={"u": (toggle_mesh_vis, [surf_cloud]),
+                     "i": (toggle_mesh_vis, [int_cloud]),
+                     "e": (toggle_mesh_vis, [ext_cloud])}
+)

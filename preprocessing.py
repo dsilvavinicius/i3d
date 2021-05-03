@@ -58,6 +58,7 @@ if not os.path.exists(args.input_path):
 
 full_samples = None
 mesh = trimesh.load(args.input_path)
+mesh = scale_to_unit_sphere(mesh)
 
 if args.samples_on_surface:
     # Surface sampling
@@ -83,7 +84,7 @@ if args.samples_on_surface:
     ))
 
 point_cloud = get_surface_point_cloud(
-    scale_to_unit_sphere(mesh),
+    mesh,
     surface_point_method="scan",
     bounding_radius=1,
     calculate_normals=True
