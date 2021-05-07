@@ -8,6 +8,9 @@ import math
 import torch.nn.functional as F
 
 
+SINE_INIT_FREQ = 60
+
+
 class BatchLinear(nn.Linear, MetaModule):
     '''A linear meta-layer that can deal with batched weight matrices and biases, as for instance output by a
     hypernetwork.'''
@@ -31,7 +34,7 @@ class Sine(nn.Module):
 
     def forward(self, input):
         # See paper sec. 3.2, final paragraph, and supplement Sec. 1.5 for discussion of factor 30
-        return torch.sin(60 * input)
+        return torch.sin(SINE_INIT_FREQ * input)
 
 
 class FCBlock(MetaModule):
@@ -619,12 +622,12 @@ def init_weights_xavier(m):
             nn.init.xavier_normal_(m.weight)
 
 
-def sine_init(m, freq=30):
+def sine_init(m):
     with torch.no_grad():
         if hasattr(m, 'weight'):
             num_input = m.weight.size(-1)
             # See supplement Sec. 1.5 for discussion of factor 30
-            m.weight.uniform_(-np.sqrt(6 / num_input) / freq, np.sqrt(6 / num_input) / freq)
+            m.weight.uniform_(-np.sqrt(6 / num_input) / SINE_INIT_FREQ, np.sqrt(6 / num_input) / SINE_INIT_FREQ)
 
 
 def first_layer_sine_init(m):
