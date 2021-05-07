@@ -553,6 +553,31 @@ class PointCloudTubular(Dataset):
 
 
 class PointCloudNonRandom(Dataset):
+    """Point Cloud dataset where the sampling is done by a proper sampler
+    instead of inside __getitem__. The goal is to decouple the dataset
+    from the sampling strategy, allowing us to experiment with diferent
+    strategies.
+
+    Parameters
+    ----------
+    pointcloud_path: str
+        Path to the input file. This file is loaded as a numpy array. We assume
+        that the data is organized as follows: x, y, z, nx, ny, nz, k1, k2, sdf
+
+    keep_aspect_ratio: boolean, optional
+        Indicates whether the mesh aspect ratio will be mantained when
+        reshaping it to fit in a bounding box of size 2 (-1, 2). Default is
+        True.
+
+    k_range: int, optional
+        The maximum curvature value to allow. Any samples with absolute value
+        of curvature larger than this will be REMOVED from the cloud. Default
+        value is 10000.
+
+    See Also
+    --------
+    numpy.genfromtxt
+    """
     def __init__(self, pointcloud_path, keep_aspect_ratio=True, k_range=10000):
         super().__init__()
 
@@ -610,14 +635,12 @@ class PointCloudNonRandom(Dataset):
         off_surface_normals = np.ones((len(idx), 3)) * -1
         off_surface_min_curvature = np.zeros((len(idx)))
         off_surface_max_curvature = np.zeros((len(idx)))
-        # We consider the curvature of the sphere centered in the origin with radius equal to the norm of the coordinate.
-        # off_surface_curvature = 1 / (np.linalg.norm(off_surface_coords, axis=1) ** 2)
 
         sdf = np.zeros((2 * len(idx), 1))  # on-surface = 0
         sdf[len(idx):, :] = -1  # off-surface = -1
 
-        coords = np.concatenate((on_surface_coords, off_surface_coords), axis=0)
-        normals = np.concatenate((on_surface_normals, off_surface_normals), axis=0)
+        coords = np.hstack((on_surface_coords, off_surface_coords))
+        normals = np.hstack((on_surface_normals, off_surface_normals))
         min_curvature = np.concatenate((on_surface_min_curvature, off_surface_min_curvature))
         min_curvature = np.expand_dims(min_curvature, -1)
         max_curvature = np.concatenate((on_surface_max_curvature, off_surface_max_curvature))
@@ -631,6 +654,98 @@ class PointCloudNonRandom(Dataset):
             "min_curvature": torch.from_numpy(min_curvature),
             "max_curvature": torch.from_numpy(max_curvature)
         }
+
+
+class PointCloudSDF(Dataset):
+    """Point Cloud dataset with points sampled on the domain using their SDF
+    value instead of -1 as per Sitzmann's work.
+
+    Parameters
+    ----------
+    pointcloud_path: str
+        Path to the input file. This file is loaded as a numpy array. We assume
+        that the data is organized as follows: x, y, z, nx, ny, nz, k1, k2, sdf
+
+    on_surface_points: int
+        Number of points to fetch on the level-set 0 of the object.
+
+    k_range: int, optional
+        The maximum curvature value to allow. Any samples with absolute value
+        of curvature larger than this will be REMOVED from the cloud. Default
+        value is 10000.
+
+    See Also
+    --------
+    numpy.genfromtxt
+    """
+    def __init__(self, pointcloud_path, on_surface_points, k_range=10000):
+        super().__init__()
+
+        print("Loading point cloud")
+        point_cloud = np.genfromtxt(pointcloud_path)
+        print("Finished loading point cloud")
+
+        # exporting ply (point, curvatures, normal):  x, y, z, nx, ny, nz, k1, k2, sdf
+        # Removing points with absurd curvatures.
+        n = point_cloud.shape[0]
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 6]) <= k_range]
+        out_min_k1 = n - point_cloud.shape[0]
+
+        point_cloud = point_cloud[np.absolute(point_cloud[:, 7]) <= k_range]
+        out_min_k2 = n - point_cloud.shape[0] + out_min_k1
+
+        print(f"[WARN] Removed {out_min_k1} with abs(k1) > {k_range}.")
+        print(f"[WARN] Removed {out_min_k2} with abs(k2) > {k_range}.")
+
+        self.coords = point_cloud[:, :3]
+        self.normals = point_cloud[:, 3:6]
+        self.max_curvatures = point_cloud[:, 6]
+        self.min_curvatures = point_cloud[:, 7]
+        self.sdf = point_cloud[:, -1]
+
+        self.on_surface_points = on_surface_points
+        self.on_surface = self.sdf == 0
+
+    def __len__(self):
+        return self.coords.shape[0] // self.on_surface_points
+
+    def __getitem__(self, idx):
+        off_surface_samples = self.on_surface_points  # **2
+        total_samples = self.on_surface_points + off_surface_samples
+
+        # Random coords of on surface points
+        on_surface_idx = np.flatnonzero(self.on_surface)
+        rand_idcs = np.random.choice(on_surface_idx, size=self.on_surface_points)
+
+        on_surface_coords = self.coords[rand_idcs, :]
+        on_surface_normals = self.normals[rand_idcs, :]
+        on_surface_min_curvature = self.min_curvatures[rand_idcs]
+        on_surface_max_curvature = self.max_curvatures[rand_idcs]
+
+        # Random coords of off-surface points
+        off_surface_idx = np.flatnonzero(~self.on_surface)
+        rand_idcs = np.random.choice(off_surface_idx, size=off_surface_samples)
+
+        off_surface_coords = self.coords[rand_idcs, :]
+        off_surface_normals = self.normals[rand_idcs, :]
+        off_surface_min_curvature = self.min_curvatures[rand_idcs]
+        off_surface_max_curvature = self.max_curvatures[rand_idcs]
+        off_surface_sdf = self.sdf[rand_idcs]
+
+        sdf = np.zeros((total_samples, 1))
+        sdf[self.on_surface_points:, ] = off_surface_sdf[:, np.newaxis]
+
+        coords = np.hstack((on_surface_coords, off_surface_coords))
+        normals = np.hstack((on_surface_normals, off_surface_normals))
+        min_curvature = np.concatenate((on_surface_min_curvature, off_surface_min_curvature))
+        min_curvature = np.expand_dims(min_curvature, -1)
+        max_curvature = np.concatenate((on_surface_max_curvature, off_surface_max_curvature))
+        max_curvature = np.expand_dims(max_curvature, -1)
+
+        return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
+                                                              'normals': torch.from_numpy(normals).float(),
+                                                              'min_curvature': torch.from_numpy(min_curvature).float(),
+                                                              'max_curvature': torch.from_numpy(max_curvature).float()}
 
 
 class Video(Dataset):
