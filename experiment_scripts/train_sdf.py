@@ -35,35 +35,45 @@ p.add_argument('--point_cloud_path', type=str, default='/home/sitzmann/data/poin
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
+p.add_argument('--time', action='store_true', required=False, help='Indicates that time will also be considered')
+
 opt = p.parse_args()
 
+sdf_dataset = None
+in_features = 0
+loss_fn = None
 
-#sdf_dataset = dataio.PointCloud(opt.point_cloud_path, on_surface_points=opt.batch_size)
-#sdf_dataset = dataio.PointCloudPrincipalDirections(opt.point_cloud_path, on_surface_points=opt.batch_size)
-#sdf_dataset = dataio.PointCloudTubularCurvatures(opt.point_cloud_path, on_surface_points=opt.batch_size)
-#sdf_dataset = dataio.PointCloudTubular(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
-sdf_dataset = dataio.PointCloudImplictFunctions(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+if(opt.time == True):
+    sdf_dataset = dataio.PointCloudImplictFunctions_4D(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+    in_features = 4
+    loss_fn = loss_functions.implicit_function_4D
+    summary_fn = None
+else:
+    #sdf_dataset = dataio.PointCloud(opt.point_cloud_path, on_surface_points=opt.batch_size)
+    #sdf_dataset = dataio.PointCloudPrincipalDirections(opt.point_cloud_path, on_surface_points=opt.batch_size)
+    #sdf_dataset = dataio.PointCloudTubularCurvatures(opt.point_cloud_path, on_surface_points=opt.batch_size)
+    #sdf_dataset = dataio.PointCloudTubular(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+    sdf_dataset = dataio.PointCloudImplictFunctions(opt.point_cloud_path, on_surface_points=opt.batch_size) # for tubular vicinity
+    in_features = 3
+    #loss_fn = loss_functions.sdf_tensor_curvature
+    #loss_fn = loss_functions.sdf_mean_curvature
+    #loss_fn = loss_functions.sdf_gaussian_curvature
+    #loss_fn = loss_functions.sdf_principal_curvatures
+    #loss_fn = loss_functions.sdf_original
+    #loss_fn = loss_functions.sdf_principal_directions
+    #loss_fn = loss_functions.sdf_principal_curvature_segmentation
+    #loss_fn = loss_functions.sdf_original_on_surface
+    loss_fn = loss_functions.implicit_function
+    summary_fn = utils.write_sdf_summary
 
 dataloader = DataLoader(sdf_dataset, shuffle=True, batch_size=1, pin_memory=True, num_workers=0)
 
-# Define the model.
+# Define the model
 if opt.model_type == 'nerf':
-    model = modules.SingleBVPNet(type='relu', mode='nerf', in_features=3)
+    model = modules.SingleBVPNet(type='relu', mode='nerf', in_features=in_features)
 else:
-    model = modules.SingleBVPNet(type=opt.model_type, in_features=3)
+    model = modules.SingleBVPNet(type=opt.model_type, in_features=in_features)
 model.cuda()
-
-# Define the loss
-#loss_fn = loss_functions.sdf_tensor_curvature
-#loss_fn = loss_functions.sdf_mean_curvature
-#loss_fn = loss_functions.sdf_gaussian_curvature
-#loss_fn = loss_functions.sdf_principal_curvatures
-#loss_fn = loss_functions.sdf_original
-#loss_fn = loss_functions.sdf_principal_directions
-#loss_fn = loss_functions.sdf_principal_curvature_segmentation
-#loss_fn = loss_functions.sdf_original_on_surface
-loss_fn = loss_functions.implicit_function
-summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 

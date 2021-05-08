@@ -16,7 +16,7 @@ import modules
 
 
 def create_mesh(
-    decoder, filename, N=256, max_batch=64 ** 3, offset=None, scale=None
+    decoder, filename, t=-1, N=256, max_batch=64 ** 3, offset=None, scale=None
 ):
     start = time.time()
     ply_filename = filename
@@ -28,7 +28,14 @@ def create_mesh(
     voxel_size = 2.0 / (N - 1)
 
     overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
-    samples = torch.zeros(N ** 3, 4)
+    
+    sdf_coord = 3
+    if (t!=-1):
+        sdf_coord = 4
+
+    # (x,y,z,sdf) if we are not considering time
+    # (x,y,z,t,sdf) otherwise
+    samples = torch.zeros(N ** 3, sdf_coord + 1)
 
     # transform first 3 columns
     # to be the x, y, z index
@@ -42,6 +49,10 @@ def create_mesh(
     samples[:, 1] = (samples[:, 1] * voxel_size) + voxel_origin[1]
     samples[:, 2] = (samples[:, 2] * voxel_size) + voxel_origin[0]
 
+    #adding the time
+    if(t!=-1):
+        samples[:, sdf_coord-1] = t
+
     num_samples = N ** 3
 
     samples.requires_grad = False
@@ -50,9 +61,9 @@ def create_mesh(
 
     while head < num_samples:
         print(head)
-        sample_subset = samples[head : min(head + max_batch, num_samples), 0:3].cuda()
+        sample_subset = samples[head : min(head + max_batch, num_samples), 0: sdf_coord].cuda()
 
-        samples[head : min(head + max_batch, num_samples), 3] = (
+        samples[head : min(head + max_batch, num_samples), sdf_coord] = (
             decoder(sample_subset)['model_out']
             .squeeze()#.squeeze(1)
             .detach()
@@ -60,22 +71,11 @@ def create_mesh(
         )
         head += max_batch
 
-    sdf_values = samples[:, 3]
+    sdf_values = samples[:, sdf_coord]
     sdf_values = sdf_values.reshape(N, N, N)
 
     end = time.time()
     print("sampling takes: %f" % (end - start))
-
-    #also exports the curvatures
-    # convert_sdf_samples_to_ply_with_curvatures(
-    #     decoder,
-    #     sdf_values.data.cpu(),
-    #     voxel_origin,
-    #     voxel_size,
-    #     ply_filename + ".ply",
-    #     offset,
-    #     scale,
-    # )
     
     #only exports the coordinates
     convert_sdf_samples_to_ply(
@@ -144,8 +144,8 @@ def create_mesh_with_curvatures(
     print("sampling takes: %f" % (end - start))
 
     #also exports the curvatures
-    convert_sdf_samples_to_ply_with_curvatures(
-    #convert_sdf_samples_to_ply_with_curvatures_directions(
+    #convert_sdf_samples_to_ply_with_curvatures(
+    convert_sdf_samples_to_ply_with_curvatures_directions(
         decoder,
         sdf_values.data.cpu(),
         voxel_origin,
@@ -204,8 +204,9 @@ def compute_mesh_curvature_directions(decoder, mesh_points):
 
         # principal directions
         #curvature_i = diff_operators.principal_curvature(sdf_vert_values_i, coords_i, gradient, hessian)[0]
-        direction_i = diff_operators.principal_directions(gradient, hessian[0])[0][...,0:3]       
+        #direction_i = diff_operators.principal_directions(gradient, hessian[0])[0][...,0:3]       
         #direction_i = torch.where(curvature_i < -0.5, direction_i, torch.zeros_like(direction_i))
+        direction_i = gradient
 
         direction_i = direction_i.squeeze(0).cpu().detach().numpy()
         

@@ -240,6 +240,30 @@ def sdf_original(model_output, gt):
             'normal_constraint': normal_constraint.mean() * 1e2,  # 1e2
             'grad_constraint': grad_constraint.mean() * 1e1}
 
+
+def sdf(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    coords   = model_output['model_in']
+    pred_sdf = model_output['model_out']
+
+    gradient = diff_operators.gradient(pred_sdf, coords)
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint    = (gt_sdf - pred_sdf)**2
+    normal_constraint = torch.where(gt_sdf == 0, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint   = (gradient.norm(dim=-1) - 1.)**2
+    
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf': torch.abs(sdf_constraint).mean() * 1e1, #3e3,  # 1e4      # 3e3
+            'normal_constraint': normal_constraint.mean() ,  # 1e2
+            'grad_constraint': grad_constraint.mean() }            
+
 def sdf_original_on_surface(model_output, gt):
     '''
        x: batch of input coordinates
@@ -444,8 +468,6 @@ def sdf_principal_curvatures(model_output, gt):
             }
 
 
-
-
 def sdf_tensor_curvature(model_output, gt):
     '''
        x: batch of input coordinates
@@ -537,16 +559,16 @@ def implicit_function(model_output, gt):
        y: usually the output of the trial_soln function
        '''
     gt_sdf = gt['sdf']
-    gt_normals = gt['normals']
+    #gt_normals = gt['normals']
     #gt_dirs = gt['principal_directions']
-    gt_min_curv = gt['min_curvature']
-    gt_max_curv = gt['max_curvature']
+    #gt_min_curv = gt['min_curvature']
+    #gt_max_curv = gt['max_curvature']
 
     coords   = model_output['model_in']
     pred_sdf = model_output['model_out']
 
-    gradient = diff_operators.gradient(pred_sdf, coords)
-    hessian  = diff_operators.hessian(pred_sdf, coords)
+    #gradient = diff_operators.gradient(pred_sdf, coords)
+    #hessian  = diff_operators.hessian(pred_sdf, coords)
     #pred_dirs = diff_operators.principal_directions(gradient,hessian[0])[0]
     #pred_min_curv, pred_max_curv = diff_operators.principal_curvature(pred_sdf,coords,gradient,hessian)   
     #pred_min_curv = pred_min_curv.unsqueeze(0)
@@ -558,18 +580,42 @@ def implicit_function(model_output, gt):
     # print(pred_min_curv)
     # print(pred_max_curv)
 
-    sdf_constraint    = (gt_sdf - pred_sdf)**2
+    sdf_constraint    = torch.abs(gt_sdf - pred_sdf)
     #normal_constraint =  1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None]
-    grad_constraint   = (gt_normals-gradient).norm(dim=-1).unsqueeze(-1)
+    #grad_constraint   = (gt_normals-gradient).norm(dim=-1).unsqueeze(-1)
     #dirs_constraint =  1 - torch.abs(F.cosine_similarity(pred_dirs, gt_dirs, dim=-1)[..., None])
     #curv_constraint = (gt_min_curv-pred_min_curv)**2 + (gt_max_curv-pred_max_curv)**2
 
     # Exp      # Lapl
     # -----------------
-    return {'sdf'              : sdf_constraint.mean() * 1e1 ,
+    return {'sdf'              : sdf_constraint.mean() * 1e1 #,
             #'normal_constraint': normal_constraint.mean(),# *1
-            'grad_constraint'  : grad_constraint.mean() * 0.1#, 
+            #'grad_constraint'  : grad_constraint.mean() * 0.1#, 
             #'dirs_constraint'  : dirs_constraint.mean()*1e3,# *1 
             #'curv_constraint'  : curv_constraint.mean() *0.001 
             }
 
+
+def implicit_function_4D(model_output, gt):
+    '''
+       x: batch of input coordinates
+       y: usually the output of the trial_soln function
+       '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+    
+    coords   = model_output['model_in']
+    pred_sdf = model_output['model_out']
+
+    gradient = diff_operators.gradient(pred_sdf, coords)[:,:,0:3]
+    
+    sdf_constraint    = (gt_sdf - pred_sdf)**2
+    normal_constraint =  1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None]
+    grad_constraint   = (gt_normals-gradient).norm(dim=-1).unsqueeze(-1)
+    
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf'              : sdf_constraint.mean() * 2e1 ,
+            'normal_constraint': normal_constraint.mean(),# *1
+            'grad_constraint'  : grad_constraint.mean() * 0.1#, 
+            }

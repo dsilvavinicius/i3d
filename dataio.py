@@ -779,7 +779,7 @@ class PointCloudImplictFunctions(Dataset):
     def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
         super().__init__()
        
-        self.coords = np.random.uniform(-1, 1, size=(100000, 3))
+        self.coords = np.random.uniform(-1, 1, size=(300000, 3))
         self.points = on_surface_points
 
     def __len__(self):
@@ -793,7 +793,8 @@ class PointCloudImplictFunctions(Dataset):
         coords = torch.from_numpy(self.coords[rand_idcs, :]).float().unsqueeze(0)
 
         #function = implicit_functions.elipsoid()
-        function = implicit_functions.double_torus()
+        #function = implicit_functions.double_torus()
+        function = implicit_functions.sdf_torus()
         function.eval()
         coord_values = function(coords)
 
@@ -801,22 +802,75 @@ class PointCloudImplictFunctions(Dataset):
         values = coord_values['model_out']#.unsqueeze(0)
         
         gradient = diff_operators.gradient(values,coords)#np.ones((off_surface_samples, 3)) * -1
+    
         hessian  = diff_operators.hessian(values,coords)
         min_curvature, max_curvature = diff_operators.principal_curvature(values,coords,gradient,hessian)
         principal_directions = diff_operators.principal_directions(gradient,hessian[0])[0]
-
-        # print(coords[0].shape)
-        # print(values[0].shape)
-        # print(gradient[0].shape)
-        # print(min_curvature.shape)
-        # print(principal_directions[0].shape)
-        
 
         return {'coords': coords[0]}, {'sdf': values[0].cpu(),
                                     'normals': gradient[0].cpu(),
                                     'min_curvature': min_curvature.cpu(),
                                     'max_curvature': max_curvature.cpu(),
                                     'principal_directions': principal_directions[0].cpu()}
+
+
+class PointCloudImplictFunctions_4D(Dataset):
+    def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
+        super().__init__()
+       
+        self.coords = np.random.uniform(-1, 1, size=(100000, 3))
+        self.points = on_surface_points
+
+    def __len__(self):
+        return self.coords.shape[0] // self.points
+
+    def __getitem__(self, idx):
+        point_cloud_size = self.coords.shape[0]
+
+        time = torch.zeros((1,3*self.points, 1))  
+        time[:, :self.points, :] = 0
+        time[:, self.points:2*self.points, :] = 0.5  
+        time[:, 2*self.points:, :] = 1
+
+        rand_idcs = np.random.choice(point_cloud_size, size=self.points)
+
+        coords = torch.from_numpy(self.coords[rand_idcs, :]).float().unsqueeze(0)
+
+        function1 = implicit_functions.elipsoid()
+        function2 = implicit_functions.torus()
+        function3 = implicit_functions.double_torus()
+        function1.eval()
+        function2.eval()
+        function3.eval()
+        coord_values1 = function1(coords)
+        coord_values2 = function2(coords)
+        coord_values3 = function3(coords)
+
+        coords1 = coord_values1['model_in']
+        values1 = coord_values1['model_out']#.unsqueeze(0)
+        
+        coords2 = coord_values2['model_in']
+        values2 = coord_values2['model_out']#.unsqueeze(0)
+        
+        coords3 = coord_values3['model_in']
+        values3 = coord_values3['model_out']#.unsqueeze(0)
+        
+        gradient1 = diff_operators.gradient(values1,coords1)#np.ones((off_surface_samples, 3)) * -1
+        gradient2 = diff_operators.gradient(values2,coords2)#np.ones((off_surface_samples, 3)) * -1
+        gradient3 = diff_operators.gradient(values3,coords3)#np.ones((off_surface_samples, 3)) * -1
+
+        coords = torch.cat((coords1, coords2, coords3), axis=1)
+        coords = torch.cat((coords, time), axis=-1)
+        values = torch.cat((values1, values2, values3), axis=1)
+        gradient = torch.cat((gradient1, gradient2, gradient3), axis=1)
+
+        # print(coords)
+        # print(coords.shape)
+        # print(values.shape)
+        # print(gradient.shape)
+
+        return {'coords': coords[0]}, {'sdf': values[0].cpu(),
+                                    'normals': gradient[0].cpu()}
 
 
 

@@ -29,18 +29,26 @@ p.add_argument('--model_type', type=str, default='sine',
 p.add_argument('--mode', type=str, default='mlp',
                help='Options are "mlp" or "nerf"')
 p.add_argument('--resolution', type=int, default=1600)
+p.add_argument('--time', action='store_true', required=False, help='Indicates that time will also be considered')
 
 opt = p.parse_args()
 
+
+in_features = 0
+
+if(opt.time == True):
+    in_features = 4
+else:
+    in_features = 3
 
 class SDFDecoder(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # Define the model.
         if opt.mode == 'mlp':
-            self.model = modules.SingleBVPNet(type=opt.model_type, final_layer_factor=1, in_features=3)
+            self.model = modules.SingleBVPNet(type=opt.model_type, final_layer_factor=1, in_features=in_features)
         elif opt.mode == 'nerf':
-            self.model = modules.SingleBVPNet(type='relu', mode='nerf', final_layer_factor=1, in_features=3)
+            self.model = modules.SingleBVPNet(type='relu', mode='nerf', final_layer_factor=1, in_features=in_features)
         self.model.load_state_dict(torch.load(opt.checkpoint_path))
         self.model.cuda()
 
@@ -49,12 +57,17 @@ class SDFDecoder(torch.nn.Module):
         return self.model(model_in)#['model_out']
 
 
-#sdf_decoder = SDFDecoder()
+sdf_decoder = SDFDecoder()
 #sdf_decoder = implicit_functions.torus()
-sdf_decoder = implicit_functions.double_torus()
+#sdf_decoder = implicit_functions.double_torus()
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 utils.cond_mkdir(root_path)
 
-#sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, 'test_epoch_0100'), N=opt.resolution)
-sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test_double_torus_umbilical'), N=opt.resolution)
+if(opt.time == True):
+    N = 5 #number of samples of the interval time [0,1]
+    for i in range(N):
+        t = i/(N-1)
+        sdf_meshing.create_mesh(sdf_decoder, os.path.join(root_path, f"test_epoch_{t}"), t, N=opt.resolution)
+else:
+    sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test'), N=opt.resolution)

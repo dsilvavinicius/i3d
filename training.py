@@ -91,7 +91,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                 if not total_steps % steps_til_summary:
                     torch.save(model.state_dict(),
                                os.path.join(checkpoints_dir, 'model_current.pth'))
-                    summary_fn(model, model_input, gt, model_output, writer, total_steps)
+                    if(summary_fn):
+                        summary_fn(model, model_input, gt, model_output, writer, total_steps)
 
                 if not use_lbfgs:
                     optim.zero_grad()
@@ -129,8 +130,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
             # if epoch == 80:
             #     print(model_input)
             #     print(model_output)
-            #     sdf_meshing.create_mesh_with_curvatures(model, 'D:\\Work\\test_logs\\armadillo_tubular\\test_curv', N=512)
-            # # ---------------
+            #     sdf_meshing.create_mesh(model, 'D:\\Work\\test_logs\\armadillo_tubular\\test_curv', 0.75, N=512)
+            # ---------------
 
         torch.save(model.state_dict(),
                    os.path.join(checkpoints_dir, 'model_final.pth'))
