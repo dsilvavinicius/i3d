@@ -4,6 +4,7 @@
 # Enable import from parent package
 import sys
 import os
+import json
 from torch.utils.data import DataLoader, BatchSampler, RandomSampler
 import configargparse
 
@@ -68,7 +69,7 @@ model.cuda()
 #loss_fn = loss_functions.sdf_mean_curvature
 #loss_fn = loss_functions.sdf_gaussian_curvature
 #loss_fn = loss_functions.sdf_principal_curvatures
-loss_fn = loss_functions.sdf
+loss_fn = loss_functions.sdf_on_off_surf
 summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
@@ -77,3 +78,15 @@ training.train(model=model, train_dataloader=dataloader, epochs=opt.num_epochs, 
                steps_til_summary=opt.steps_til_summary, epochs_til_checkpoint=opt.epochs_til_ckpt,
                model_dir=root_path, loss_fn=loss_fn, summary_fn=summary_fn, double_precision=False,
                clip_grad=True)
+
+params = {
+    "batch_size": opt.batch_size,
+    "lr": opt.lr,
+    "num_epochs": opt.num_epochs,
+    "model_type": opt.model_type,
+    "w0": modules.SINE_INIT_FREQ,
+    "point_cloud_path": opt.point_cloud_path,
+}
+
+with open(os.path.join(root_path, "params.json"), "w+") as fout:
+    json.dump(params, fout, sort_keys=True, indent=4)
