@@ -23,10 +23,6 @@ def main():
         help="Checkpoint base directory. e.g. ./logs/test1"
     )
     parser.add_argument(
-        "output_dir",
-        help="Base path for the output meshes, e.g. ./logs/test1_rec"
-    )
-    parser.add_argument(
         "--checkpoints", "-c", nargs="+", default=["final"],
         help="Checkpoints to use when reconstructing the model."
     )
@@ -36,11 +32,14 @@ def main():
     )
     args = parser.parse_args()
 
-    output_dir = os.path.join(args.output_dir)
+    output_dir = os.path.join(args.base_dir, "reconstructions")
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     else:
         print("[WARN] Output path exists, overwritting contents.")
+
+    with open(os.path.join(args.base_dir, "reconstruction_params.json"), "w+") as fout:
+        print("{\"resolution\": " + f"{args.resolution}" + "}", file=fout)
 
     checkpoint_dir = os.path.join(args.base_dir, "checkpoints")
 
@@ -63,7 +62,7 @@ def main():
             print(f"[WARN] Error when calling test_sdf.py with args: \"{lex_args}\"")
             continue
         shutil.copyfile(
-            os.path.join("logs", experiment_name, "test_curv.ply"),
+            os.path.join("logs", experiment_name, "test.ply"),
             os.path.join(output_dir, f"{c}.ply")
         )
 
