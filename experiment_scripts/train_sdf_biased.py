@@ -2,6 +2,7 @@
 
 import sys
 import os
+import json
 from torch.utils.data import DataLoader, BatchSampler
 from configargparse import ArgumentParser
 
@@ -96,3 +97,15 @@ training.train(model=model,
                summary_fn=summary_fn,
                double_precision=False,
                clip_grad=True)
+
+params = {
+    "batch_size": opt.batch_size,
+    "lr": opt.lr,
+    "num_epochs": opt.num_epochs,
+    "model_type": opt.model_type,
+    "w0": modules.SINE_INIT_FREQ,
+    "point_cloud_path": opt.point_cloud_path,
+}
+
+with open(os.path.join(root_path, "params.json"), "w+") as fout:
+    json.dump(params, fout, sort_keys=True, indent=4)
