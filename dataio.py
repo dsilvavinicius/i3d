@@ -656,8 +656,8 @@ class PointCloudNonRandom(Dataset):
         sdf = np.zeros((2 * len(idx), 1))  # on-surface = 0
         sdf[len(idx):, :] = -1  # off-surface = -1
 
-        coords = np.hstack((on_surface_coords, off_surface_coords))
-        normals = np.hstack((on_surface_normals, off_surface_normals))
+        coords = np.vstack((on_surface_coords, off_surface_coords))
+        normals = np.vstack((on_surface_normals, off_surface_normals))
         min_curvature = np.concatenate((on_surface_min_curvature, off_surface_min_curvature))
         min_curvature = np.expand_dims(min_curvature, -1)
         max_curvature = np.concatenate((on_surface_max_curvature, off_surface_max_curvature))
@@ -867,8 +867,8 @@ class PointCloudSDF(Dataset):
         sdf = np.zeros((total_samples, 1))
         sdf[self.on_surface_points:, ] = off_surface_sdf[:, np.newaxis]
 
-        coords = np.hstack((on_surface_coords, off_surface_coords))
-        normals = np.hstack((on_surface_normals, off_surface_normals))
+        coords = np.vstack((on_surface_coords, off_surface_coords))
+        normals = np.vstack((on_surface_normals, off_surface_normals))
 
         min_curvature = np.concatenate((on_surface_min_curvature, off_surface_min_curvature))
         min_curvature = np.expand_dims(min_curvature, -1)
