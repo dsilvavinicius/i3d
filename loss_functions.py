@@ -333,7 +333,7 @@ def sdf_principal_curvature_segmentation(model_output, gt):
             'grad_constraint': grad_constraint.mean() * 1e1}
 
 
-def sdf(model_output, gt):
+def sdf_on_off_surf(model_output, gt):
     '''
     x: batch of input coordinates
     y: usually the output of the trial_soln function
