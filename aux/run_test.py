@@ -8,6 +8,7 @@ and a set of checkpoints.
 
 
 import argparse
+import json
 import shlex
 import shutil
 import subprocess
@@ -38,33 +39,50 @@ def main():
     else:
         print("[WARN] Output path exists, overwritting contents.")
 
-    with open(os.path.join(args.base_dir, "reconstruction_params.json"), "w+") as fout:
-        print("{\"resolution\": " + f"{args.resolution}" + "}", file=fout)
+    params = dict()
 
     checkpoint_dir = os.path.join(args.base_dir, "checkpoints")
 
     for c in args.checkpoints:
         experiment_name = args.base_dir.split("/")[-1] + f"_checkpoint-{c}"
-        default_args = f"python experiment_scripts/test_sdf.py --resolution={args.resolution} --experiment_name={experiment_name}"
+        default_args = f"python experiment_scripts/test_sdf.py --experiment_name={experiment_name}"
+
         model_name = ""
-        if c != "final":
-            model_name = f"model_epoch_{c:0>4}.pth"
-        else:
+        if c == "final":
             model_name = "model_final.pth"
+        elif c == "current":
+            model_name = "model_current.pth"
+        else:
+            model_name = f"model_epoch_{c:0>4}.pth"
 
         checkpoint_path = os.path.join(checkpoint_dir, model_name)
-        cmd_line = f"{default_args} --checkpoint_path={checkpoint_path}"
+        checkpoint_args = f"{default_args} --checkpoint_path={checkpoint_path}"
 
-        lex_args = shlex.split(cmd_line)
-        try:
-            subprocess.run(lex_args, check=True)
-        except subprocess.CalledProcessError:
-            print(f"[WARN] Error when calling test_sdf.py with args: \"{lex_args}\"")
-            continue
+        params[c] = dict()
+
+        resolution_divisor = 1
+        while args.resolution // resolution_divisor > 1:
+            r = args.resolution // resolution_divisor
+            params[c]["resolution"] = r
+            cmd_line = f"{checkpoint_args} --resolution={r}"
+
+            lex_args = shlex.split(cmd_line)
+            try:
+                subprocess.run(lex_args, check=True)
+            except subprocess.CalledProcessError:
+                print(f"[WARN] Error when calling test_sdf.py with args: \"{lex_args}\"")
+                resolution_divisor *= 2
+                continue
+            else:
+                break
+
         shutil.copyfile(
             os.path.join("logs", experiment_name, "test.ply"),
             os.path.join(output_dir, f"{c}.ply")
         )
+
+        with open(os.path.join(args.base_dir, "reconstruction_params.json"), "w+") as fout:
+            json.dump(params, fout, sort_keys=True, indent=4)
 
 
 if __name__ == "__main__":
