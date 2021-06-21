@@ -1,0 +1,3 @@
+[submodule "Shader-Neural-Implicits"]
+	path = Shader-Neural-Implicits
+	url = git@github.com:dsilvavinicius/Shader-Neural-Implicits.git
