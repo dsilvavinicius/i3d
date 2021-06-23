@@ -17,7 +17,7 @@ import modules
 
 class CodeCoverageTest(unittest.TestCase):
     def setUp(self):
-        self.logging_root = "../logs"
+        self.logging_root = "./logs"
         self.experiment_name = "CodeCoverageTest"
 
         self.batch_size = 4096
@@ -28,7 +28,7 @@ class CodeCoverageTest(unittest.TestCase):
         self.steps_til_summary = 100
 
         self.model_type = "sine"
-        self.point_cloud_path = "../data/double_torus.xyz"
+        self.point_cloud_path = "data/double_torus.xyz"
         self.checkpoint_path = None
 
     def test_model_training(self):
@@ -45,7 +45,7 @@ class CodeCoverageTest(unittest.TestCase):
             num_workers=0
         )
 
-        model = modules.SingleBVPNet(type=self.model_type, in_features=3)
+        model = modules.SingleBVPNet(type=self.model_type, in_features=3).cuda()
         loss_fn = loss_functions.sdf_on_off_surf
         summary_fn = utils.write_sdf_summary
 
