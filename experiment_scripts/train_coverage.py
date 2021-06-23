@@ -22,10 +22,10 @@ class CodeCoverageTest(unittest.TestCase):
 
         self.batch_size = 4096
         self.lr = 1e-4
-        self.num_epochs = 100
+        self.num_epochs = 10
 
         self.epochs_til_ckpt = 1
-        self.steps_til_summary = 100
+        self.steps_til_summary = 10
 
         self.model_type = "sine"
         self.point_cloud_path = "data/double_torus.xyz"
