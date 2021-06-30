@@ -45,7 +45,8 @@ class CodeCoverageTest(unittest.TestCase):
             num_workers=0
         )
 
-        model = modules.SingleBVPNet(type=self.model_type, in_features=3).cuda()
+        model = modules.SingleBVPNet(type=self.model_type, in_features=3, hidden_features=16, num_hidden_layers=2).cuda()
+
         loss_fn = loss_functions.sdf_on_off_surf
         summary_fn = utils.write_sdf_summary
 

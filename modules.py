@@ -8,7 +8,8 @@ import math
 import torch.nn.functional as F
 
 
-SINE_INIT_FREQ = 60
+#SINE_INIT_FREQ = 60 # for armadillo
+SINE_INIT_FREQ = 5 #for the double_torus
 
 
 class BatchLinear(nn.Linear, MetaModule):
