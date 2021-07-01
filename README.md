@@ -27,7 +27,8 @@ This is the official implementation of "High Order Derivative Learning for Graph
 1. Open Git Bash
 2. Clone the repository: `git clone --recurse-submodules git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git`.
 3. Enter project folder: `cd high_order_derivative_learning_for_graphics`.
-4. Setup project dependencies:
+4. Change branch to refactor: `git checkout refactor`
+5. Setup project dependencies:
 ```
 conda env create -f environment.yml
 conda activate hodl
