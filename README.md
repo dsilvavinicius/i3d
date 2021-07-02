@@ -1,9 +1,9 @@
 # High Order Derivative Learning for Graphics
 [Tiago Novello [1]](blank),
 [Vinícius da Silva [2]](https://dsilvavinicius.github.io/),
-[Guilherme Schardong [2]](blank),
-[Luiz Schirmer [2]](blank),
-[Hélio Lopes [2]](http://www-di.inf.puc-rio.br/~lopes//),
+[Guilherme Schardong [2]](https://schardong.github.io/),
+[Luiz Schirmer [2]](https://www.lschirmer.com),
+[Hélio Lopes [2]](http://www-di.inf.puc-rio.br/~lopes/),
 [Luiz Velho [1]](https://lvelho.impa.br/)
 <br>
 [1] Institute for Pure and Applied Mathematics (IMPA),
