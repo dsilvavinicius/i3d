@@ -33,7 +33,7 @@ conda env create -f environment.yml
 conda activate hodl
 ```
 5. Download the [Double Torus Mesh](https://drive.google.com/file/d/11PkscMHBUkkENhHfI1lpH5Dh6X9f2028/view?usp=sharing) into the `data` folder in the repository.
-6. Run the double torus toy example script: `./tools/double_torus/double_torus_toy_example.sh`. This script preprocess the mesh using `tools/preprocess_double_torus.sh`, train the model using `train_double_torus.sh` and create the binary neural network files to be loaded in shaders using `double_torus_pth2bin.sh`.
+6. Run the double torus toy example script: `./tools/double_torus/double_torus_toy_example.sh`. This script preprocesses the mesh using `tools/preprocess_double_torus.sh`, trains the model using `train_double_torus.sh` and creates the binary neural network files to be loaded in shaders using `double_torus_pth2bin.sh`.
 7. The resulting binary neural network files will be `logs/double_torus/checkpoints/model_current_biases.bin`, and `model_current_weights.bin`.
 8. Open SHADERed.
 9. `File -> Open` and select the SHADERed project file `Shader-Neural-Implicits/NeuralImplicits.sprj`.
