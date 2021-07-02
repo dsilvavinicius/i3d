@@ -45,7 +45,9 @@ conda activate hodl
 
 We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the running of all scripts on step 6, defined above.
 
-SHADERed should show the following image:
+### End Result
+
+If everything works, SHADERed should show the following image:
 
 ![Double Torus](figs/double_torus.png "Double Torus")
 
