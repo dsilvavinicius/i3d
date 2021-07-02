@@ -41,6 +41,10 @@ conda activate hodl
 10. Load The binary network weights: `Objects -> weights -> LOAD RAW DATA` and select the file `logs/double_torus/checkpoints/model_current_weights.bin`.
 11. Load The binary network biases: `Objects -> biases -> LOAD RAW DATA` and select the file `logs/double_torus/checkpoints/model_current_biases.bin`.
 
+### Linux
+
+We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the running of all scripts on step 6, defined above.
+
 SHADERed should show the following image:
 
 ![Double Torus](figs/double_torus.png "Double Torus")
