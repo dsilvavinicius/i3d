@@ -2,6 +2,7 @@
 '''
 
 import torch
+import json
 import utils
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.autonotebook import tqdm
@@ -9,6 +10,7 @@ import time
 import numpy as np
 import os
 import shutil
+import modules
 
 import sdf_meshing
 
@@ -30,6 +32,18 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
             shutil.rmtree(model_dir)
 
     os.makedirs(model_dir)
+
+    params = {
+        "batch_size": train_dataloader.dataset.batch_size,
+        "lr": lr,
+        "num_epochs": epochs,
+        "model_type": model.typ,
+        "w0": model.w0,
+        "point_cloud_path": train_dataloader.dataset.input_path,
+    }
+
+    with open(os.path.join(model_dir, "params.json"), "w+") as fout:
+        json.dump(params, fout, sort_keys=True, indent=4)
 
     summaries_dir = os.path.join(model_dir, 'summaries')
     utils.cond_mkdir(summaries_dir)
