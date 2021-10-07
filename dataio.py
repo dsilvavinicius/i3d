@@ -1,7 +1,13 @@
 # coding: utf-8
 
+import math
+from mesh_to_sdf.surface_point_cloud import SurfacePointCloud
+from mesh_to_sdf import (get_surface_point_cloud, scale_to_unit_cube,
+                         scale_to_unit_sphere)
 import numpy as np
 import torch
+import trimesh
+from trimesh.curvature import discrete_gaussian_curvature_measure
 import diff_operators
 import implicit_functions
 from torch.utils.data import Dataset
@@ -132,7 +138,6 @@ class PointCloud(Dataset):
         min_curvature = np.expand_dims(min_curvature, -1)
         max_curvature = np.concatenate((on_surface_max_curvature, off_surface_max_curvature))
         max_curvature = np.expand_dims(max_curvature, -1)
-
 
         return {'coords': torch.from_numpy(coords).float()}, {'sdf': torch.from_numpy(sdf).float(),
                                                               'normals': torch.from_numpy(normals).float(),
@@ -531,6 +536,151 @@ class PointCloudSDF(Dataset):
                                                               'max_curvature': torch.from_numpy(max_curvature).float()}
 
 
+class PointCloudSDFCurvatures(Dataset):
+    def __init__(self, mesh_path, scaling=None,
+                 off_surface_sdf=None, off_surface_normals=None,
+                 no_sampler=False, batch_size=0,
+                 silent=False):
+        super().__init__()
+
+        self.input_path = mesh_path
+        self.off_surface_sdf = off_surface_sdf
+        self.no_sampler = no_sampler
+        self.batch_size = batch_size
+
+        if off_surface_normals is None:
+            self.off_surface_normals = None
+        else:
+            self.off_surface_normals = torch.from_numpy(
+                off_surface_normals.astype(np.float32)
+            )
+
+        if not silent:
+            print(f"Loading mesh \"{mesh_path}\".")
+
+        mesh = trimesh.load(mesh_path)
+        if scaling is not None and scaling:
+            if scaling == "bbox":
+                mesh = scale_to_unit_cube(mesh)
+            elif scaling == "sphere":
+                mesh = scale_to_unit_sphere(mesh)
+            else:
+                raise ValueError("Invalid scaling option.")
+
+        self.mesh = mesh
+        if not silent:
+            print("Creating point-cloud and acceleration structures.")
+
+        self.point_cloud = get_surface_point_cloud(
+            mesh,
+            surface_point_method="scan",
+            calculate_normals=True
+        )
+
+        # We will fetch random samples at every access.
+        if not silent:
+            print("Calculating curvatures.")
+
+        self.gauss_curvatures = np.abs(
+            discrete_gaussian_curvature_measure(mesh, mesh.vertices, 0.01)
+        )
+
+        # low, medium, high curvature fractions
+        self.curvature_fracs = (0.5, 0.4, 0.1)
+        curv_median = np.percentile(self.gauss_curvatures, [50, 80])
+        self.bin_edges = [
+            np.min(self.gauss_curvatures),
+            curv_median[0],
+            curv_median[1],
+            np.max(self.gauss_curvatures)
+        ]
+
+        self.surface_samples = torch.from_numpy(np.hstack((
+            mesh.vertices.tolist(),
+            mesh.vertex_normals,
+            self.gauss_curvatures[:, np.newaxis],
+            np.zeros((len(mesh.vertices), 1))
+        )).astype(np.float32))
+
+        if not silent:
+            print("Done preparing the dataset.")
+
+    def __len__(self):
+        if self.no_sampler:
+            return self.surface_samples.size(0) // self.batch_size
+        return self.surface_samples.size(0)
+
+    def __getitem__(self, idx):
+        return self._random_sampling(self.batch_size)
+
+    def _random_sampling(self, n_points):
+        """Randomly samples points on the surface and function domain."""
+        if n_points <= 0:
+            n_points = self.surface_samples.size(0)
+
+        on_surface_count = n_points # int(n_points // 2) # int(math.floor(0.3 * n_points))
+        off_surface_count = n_points # n_points - on_surface_count
+
+        on_surface_sampled = 0
+        low_curvature_pts = self.surface_samples[(self.gauss_curvatures >= self.bin_edges[0]) & (self.gauss_curvatures < self.bin_edges[1]), ...]
+        low_curvature_idx = np.random.choice(
+            range(low_curvature_pts.size(0)),
+            size=int(math.floor(self.curvature_fracs[0] * on_surface_count)),
+            replace=False
+        )
+        on_surface_sampled = len(low_curvature_idx)
+
+        med_curvature_pts = self.surface_samples[(self.gauss_curvatures >= self.bin_edges[1]) & (self.gauss_curvatures < self.bin_edges[2]), ...]
+        med_curvature_idx = np.random.choice(
+            range(med_curvature_pts.size(0)),
+            size=int(math.ceil(self.curvature_fracs[1] * on_surface_count)),
+            replace=False
+        )
+        on_surface_sampled += len(med_curvature_idx)
+
+        high_curvature_pts = self.surface_samples[(self.gauss_curvatures >= self.bin_edges[2]) & (self.gauss_curvatures <= self.bin_edges[3]), ...]
+        high_curvature_idx = np.random.choice(
+            range(high_curvature_pts.size(0)),
+            size=on_surface_count - on_surface_sampled,
+            replace=False
+        )
+        on_surface_samples = torch.cat((
+            low_curvature_pts[low_curvature_idx, ...],
+            med_curvature_pts[med_curvature_idx, ...],
+            high_curvature_pts[high_curvature_idx, ...]
+        ), dim=0)
+
+        off_surface_points = np.random.uniform(-1, 1, size=(off_surface_count, 3))
+        off_surface_sdf, off_surface_normals = self.point_cloud.get_sdf(
+            off_surface_points,
+            use_depth_buffer=False,
+            return_gradients=True
+        )
+        off_surface_samples = torch.from_numpy(np.hstack((
+            off_surface_points,
+            off_surface_normals,
+            np.zeros((off_surface_count, 1)),
+            off_surface_sdf[:, np.newaxis]
+        )).astype(np.float32))
+
+        if self.off_surface_sdf is not None:
+            off_surface_samples[:, -1] = self.off_surface_sdf
+        if self.off_surface_normals is not None:
+            off_surface_samples[:, 3:6] = self.off_surface_normals
+
+        samples = torch.cat((on_surface_samples, off_surface_samples), dim=0)
+
+        # Unsqueezing the SDF since it returns a shape [1] tensor and we need a
+        # [1, 1] shaped tensor.
+        return {
+            "coords": samples[:, :3].float()
+        }, {
+            "normals": samples[:, 3:6].float(),
+#            "gauss_curvs": samples[:, 6].float(),
+            "sdf": samples[:, -1].unsqueeze(-1).float()
+        }
+
+
 class PointCloudPrincipalDirections(Dataset):
     def __init__(self, pointcloud_path, on_surface_points, keep_aspect_ratio=True):
         super().__init__()
@@ -714,3 +864,8 @@ class PointCloudImplictFunctions_4D(Dataset):
 
         return {'coords': coords[0]}, {'sdf': values[0].cpu(),
                                        'normals': gradient[0].cpu()}
+
+
+if __name__ == "__main__":
+    mesh = "data/armadillo.ply"
+    pc = PointCloudSDFCurvatures(mesh, no_sampler=True, batch_size=4096)
