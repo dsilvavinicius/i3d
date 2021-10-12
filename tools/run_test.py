@@ -81,6 +81,8 @@ def main():
             os.path.join(output_dir, f"{c}.ply")
         )
 
+        shutil.rmtree(os.path.join("logs", experiment_name))
+
         with open(os.path.join(args.base_dir, "reconstruction_params.json"), "w+") as fout:
             json.dump(params, fout, sort_keys=True, indent=4)
 
