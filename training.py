@@ -16,7 +16,7 @@ import sdf_meshing
 
 
 def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_checkpoint, model_dir, loss_fn,
-          summary_fn, val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None):
+          summary_fn, device="cpu", val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None):
 
     optim = torch.optim.Adam(lr=lr, params=model.parameters())
 
@@ -76,8 +76,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         _, _, d = v.size()
                         gt[k] = v.reshape(1, -1, d)
 
-                model_input = {key: value.cuda() for key, value in model_input.items()}
-                gt = {key: value.cuda() for key, value in gt.items()}
+                model_input = {key: value.to(device) for key, value in model_input.items()}
+                gt = {key: value.to(device) for key, value in gt.items()}
 
                 if double_precision:
                     model_input = {key: value.double() for key, value in model_input.items()}
@@ -134,6 +134,7 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
 
                 if not total_steps % steps_til_summary:
                     tqdm.write("Epoch %d, Total loss %0.6f, iteration time %0.6f" % (epoch, train_loss, time.time() - start_time))
+                    print("", flush=True)
 
                     if val_dataloader is not None:
                         print("Running validation set...")

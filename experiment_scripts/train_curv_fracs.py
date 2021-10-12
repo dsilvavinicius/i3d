@@ -4,6 +4,7 @@
 import sys
 import os
 import json
+import torch
 from torch.utils.data import DataLoader
 import configargparse
 
@@ -32,7 +33,7 @@ p.add_argument('--num_epochs', type=int, default=10000,
 
 p.add_argument('--epochs_til_ckpt', type=int, default=1,
                help='Time interval in seconds until checkpoint is saved.')
-p.add_argument('--steps_til_summary', type=int, default=100,
+p.add_argument('--steps_til_summary', type=int, default=1,
                help='Time interval in seconds until tensorboard summary is saved.')
 
 p.add_argument('--w0', type=int, default=30,
@@ -42,6 +43,12 @@ p.add_argument('--mesh_path', type=str, default='./data/armadillo.ply',
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
+
+available = torch.cuda.is_available()
+print(f"CUDA available? {available}", flush=True)
+
+device = torch.device("cuda:0" if available else "cpu")
+print(f"Device: {device}")
 
 sdf_dataset = dataio.PointCloudSDFCurvatures(
     opt.mesh_path,
@@ -60,7 +67,9 @@ dataloader = DataLoader(
 # Define the model.
 model = modules.SingleBVPNet(typ="sine", hidden_features=256,
                              num_hidden_layers=3, in_features=3, w0=opt.w0)
-model.cuda()
+model.to(device)
+
+print(f"Is model on GPU? {next(model.parameters()).is_cuda}", flush=True)
 
 # Define the loss
 loss_fn = loss_functions.true_sdf
@@ -79,5 +88,6 @@ training.train(
     loss_fn=loss_fn,
     summary_fn=summary_fn,
     double_precision=False,
-    clip_grad=True
+    clip_grad=True,
+    device=device
 )
