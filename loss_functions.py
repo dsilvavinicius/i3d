@@ -125,8 +125,8 @@ def sdf_principal_curvature_segmentation(model_output, gt):
             'grad_constraint': grad_constraint.mean() * 1e1}
 
 
-def sdf_on_off_surf(model_output, gt):
-    '''
+def true_sdf(model_output, gt):
+    '''Uses true SDF value off surface.
     x: batch of input coordinates
     y: usually the output of the trial_soln function
     '''
@@ -138,7 +138,7 @@ def sdf_on_off_surf(model_output, gt):
 
     gradient = diff_operators.gradient(pred_sdf, coords)
     # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
-    sdf_constraint_on_surf = torch.where(gt_sdf == 0, pred_sdf, torch.zeros_like(pred_sdf))
+    sdf_constraint_on_surf = torch.where(gt_sdf == 0, pred_sdf ** 2, torch.zeros_like(pred_sdf))
     sdf_constraint_off_surf = torch.where(gt_sdf != 0, (gt_sdf - pred_sdf) ** 2, torch.zeros_like(pred_sdf))
 #    sdf_constraint = (gt_sdf - pred_sdf)**2
     normal_constraint = torch.where(gt_sdf == 0, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
@@ -147,9 +147,51 @@ def sdf_on_off_surf(model_output, gt):
     # Exp      # Lapl
     # -----------------
     return {'sdf_on_surf': (sdf_constraint_on_surf ** 2).mean() * 3e3,
-            'sdf_off_surf': sdf_constraint_off_surf.mean() * 1e2,
+            'sdf_off_surf': sdf_constraint_off_surf.mean() * 2e2,
             'normal_constraint': normal_constraint.mean() * 1e1,
             'grad_constraint': grad_constraint.mean() * 1e1}
+
+
+def true_sdf_curvature(model_output, gt):
+    '''Uses true SDF value off surface and tries to fit gaussian curvatures on
+    the 0 level-set.
+
+    x: batch of input coordinates
+    y: usually the output of the trial_soln function
+    '''
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+    gt_curvature = gt["curvature"]
+
+    coords = model_output['model_in']
+    pred_sdf = model_output['model_out']
+
+    gradient = diff_operators.gradient(pred_sdf, coords)
+    hessian = diff_operators.hessian(pred_sdf, coords)
+
+    # gaussian curvature
+    pred_curvature = diff_operators.gaussian_curvature(gradient, hessian).unsqueeze(-1)
+    curvature_diff = torch.tanh(pred_curvature) - torch.tanh(gt_curvature)
+
+    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    sdf_constraint_on_surf = torch.where(gt_sdf == 0, pred_sdf ** 2, torch.zeros_like(pred_sdf))
+    sdf_constraint_off_surf = torch.where(gt_sdf != 0, (gt_sdf - pred_sdf) ** 2, torch.zeros_like(pred_sdf))
+#    sdf_constraint = (gt_sdf - pred_sdf)**2
+    normal_constraint = torch.where(gt_sdf == 0, 1 - F.cosine_similarity(gradient, gt_normals, dim=-1)[..., None], torch.zeros_like(gradient[..., :1]))
+    grad_constraint = (gradient.norm(dim=-1) - 1.) ** 2
+    curv_constraint = torch.where(
+        gt_sdf == 0,
+        curvature_diff ** 2,
+        torch.zeros_like(pred_curvature)
+    )
+
+    # Exp      # Lapl
+    # -----------------
+    return {'sdf_on_surf': (sdf_constraint_on_surf ** 2).mean() * 3e3,
+            'sdf_off_surf': sdf_constraint_off_surf.mean() * 2e2,
+            'normal_constraint': normal_constraint.mean() * 1e1,
+            'grad_constraint': grad_constraint.mean() * 1e1,
+            "curv_constraint": curv_constraint.mean()}
 
 
 def sdf_mean_curvature(model_output, gt):
@@ -194,8 +236,6 @@ def sdf_mean_curvature(model_output, gt):
             'curv_constraint': curv_constraint.mean() }
 
 
-# inter = 3e3 for ReLU-PE
-
 def sdf_gaussian_curvature(model_output, gt):
     '''
        x: batch of input coordinates
@@ -228,7 +268,7 @@ def sdf_gaussian_curvature(model_output, gt):
 
     abs_curvature = torch.abs(gt_curvature)
     normal_constraint = torch.where(abs_curvature> 5., normal_constraint, torch.zeros_like(gradient[..., :1]))
-    curv_constraint = torch.where(abs_curvature> 10., curv_constraint, torch.zeros_like(pred_curvature))
+    curv_constraint = torch.where(abs_curvature > 10., curv_constraint, torch.zeros_like(pred_curvature))
 
     # Exp      # Lapl
     # -----------------
