@@ -50,7 +50,8 @@ print(f"CUDA available? {available}", flush=True)
 device = torch.device("cuda:0" if available else "cpu")
 print(f"Device: {device}")
 
-sdf_dataset = dataio.PointCloudSDFCurvatures(
+# sdf_dataset = dataio.PointCloudSDFCurvatures(
+sdf_dataset = dataio.PointCloudSDFPreComputedCurvatures(
     opt.mesh_path,
     batch_size=opt.batch_size,
     scaling="bbox"
