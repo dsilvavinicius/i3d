@@ -4,6 +4,7 @@
 import sys
 import os
 import json
+import torch
 from torch.utils.data import DataLoader
 import configargparse
 
@@ -37,15 +38,23 @@ p.add_argument('--steps_til_summary', type=int, default=100,
 
 p.add_argument('--w0', type=int, default=30,
                help='Multiplicative factor for the frequencies')
-p.add_argument('--point_cloud_path', type=str, default='/home/sitzmann/data/point_cloud.xyz',
-               help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
+p.add_argument('--mesh_path', type=str, default='./data/armadillo.ply',
+               help='Mesh input path')
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
 
-sdf_dataset = dataio.PointCloudSDFCurvatures(
-    opt.point_cloud_path,
-    no_sampler=True,
+available = torch.cuda.is_available()
+print(f"CUDA available? {available}", flush=True)
+
+device = torch.device("cuda:0" if available else "cpu")
+print(f"Device: {device}")
+
+# sdf_dataset = dataio.PointCloudSDFCurvatures(
+#sdf_dataset = dataio.PointCloudSDFPreComputedCurvatures(
+sdf_dataset = dataio.PointCloudSDFPreComputedCurvaturesDirections(
+    opt.mesh_path,
+    # no_sampler=True,
     batch_size=opt.batch_size,
     scaling="bbox"
 )
@@ -61,10 +70,15 @@ dataloader = DataLoader(
 # Define the model.
 model = modules.SingleBVPNet(typ="sine", hidden_features=256,
                              num_hidden_layers=3, in_features=3, w0=opt.w0)
-model.cuda()
+model.to(device)
+
+print(f"Is model on GPU? {next(model.parameters()).is_cuda}", flush=True)
+
 
 # Define the loss
-loss_fn = loss_functions.true_sdf_curvature
+loss_fn = loss_functions.loss_curvatures
+#loss_fn = loss_functions.true_sdf
+#loss_fn = loss_functions.true_sdf_curvature
 summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
@@ -80,5 +94,6 @@ training.train(
     loss_fn=loss_fn,
     summary_fn=summary_fn,
     double_precision=False,
-    clip_grad=True
+    clip_grad=True,
+    device=device
 )
