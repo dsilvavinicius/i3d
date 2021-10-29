@@ -144,8 +144,8 @@ def create_mesh_with_curvatures(
     print("sampling takes: %f" % (end - start))
 
     #also exports the curvatures
-    #convert_sdf_samples_to_ply_with_curvatures(
-    convert_sdf_samples_to_ply_with_curvatures_directions(
+    convert_sdf_samples_to_ply_with_curvatures(
+    #convert_sdf_samples_to_ply_with_curvatures_directions(
         decoder,
         sdf_values.data.cpu(),
         voxel_origin,
@@ -176,7 +176,7 @@ def compute_mesh_curvatures(decoder, mesh_points):
         #pred_curvature_i = pred_curvatures_i[1].cpu().detach().numpy()
         
         pred_curvature_i = diff_operators.principal_curvature_region_detection(sdf_vert_values_i, coords_i).cpu().detach().numpy()
-        pred_curvature_i = diff_operators.umbilical_indicator(sdf_vert_values_i, coords_i).cpu().detach().numpy()
+        #pred_curvature_i = diff_operators.umbilical_indicator(sdf_vert_values_i, coords_i).cpu().detach().numpy()
         #pred_curvature_i = diff_operators.gaussian_curvature(gradient, hessian).unsqueeze(-1).cpu().detach().numpy()
         #pred_curvature_i = diff_operators.mean_curvature(sdf_vert_values_i, coords_i).squeeze(0).cpu().detach().numpy()
         if len(pred_curvature)==0:
@@ -204,9 +204,9 @@ def compute_mesh_curvature_directions(decoder, mesh_points):
 
         # principal directions
         #curvature_i = diff_operators.principal_curvature(sdf_vert_values_i, coords_i, gradient, hessian)[0]
-        #direction_i = diff_operators.principal_directions(gradient, hessian[0])[0][...,0:3]       
+        direction_i = diff_operators.principal_directions(gradient, hessian[0])[0][...,0:3]       
         #direction_i = torch.where(curvature_i < -0.5, direction_i, torch.zeros_like(direction_i))
-        direction_i = gradient
+        #direction_i = gradient
 
         direction_i = direction_i.squeeze(0).cpu().detach().numpy()
         
