@@ -27,6 +27,9 @@ p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained mo
 p.add_argument('--resolution', type=int, default=256)
 p.add_argument('--time', action='store_true', required=False, help='Indicates that time will also be considered')
 
+p.add_argument('--w0', type=int, default=30,
+               help='Multiplicative factor for the frequencies')
+
 opt = p.parse_args()
 
 in_features = 3
@@ -41,6 +44,7 @@ class SDFDecoder(torch.nn.Module):
             final_layer_factor=1,
             in_features=in_features,
             num_hidden_layers=3,
+            w0=opt.w0
         )
         self.model.load_state_dict(torch.load(opt.checkpoint_path))
         self.model.cuda()

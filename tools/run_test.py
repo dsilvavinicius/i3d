@@ -31,6 +31,9 @@ def main():
         "--resolution", "-r", type=int, default=256,
         help="Marching cubes resolution"
     )
+    parser.add_argument('--w0', type=int, default=30,
+               help='Multiplicative factor for the frequencies')
+
     args = parser.parse_args()
 
     output_dir = os.path.join(args.base_dir, "reconstructions")
@@ -45,7 +48,7 @@ def main():
 
     for c in args.checkpoints:
         experiment_name = args.base_dir.split("/")[-1] + f"_checkpoint-{c}"
-        default_args = f"python experiment_scripts/test_sdf.py --experiment_name={experiment_name}"
+        default_args = f"python experiment_scripts/test_sdf.py --experiment_name={experiment_name} --w0={args.w0}"
 
         model_name = ""
         if c == "final":
@@ -55,7 +58,7 @@ def main():
         else:
             model_name = f"model_epoch_{c:0>4}.pth"
 
-        checkpoint_path = os.path.join(checkpoint_dir, model_name)
+        checkpoint_path = checkpoint_dir + "/" + model_name
         checkpoint_args = f"{default_args} --checkpoint_path={checkpoint_path}"
 
         params[c] = dict()
