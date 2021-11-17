@@ -1182,6 +1182,8 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
 
     scaling: str, optional
 
+    uniform_sampling: boolean, optional
+
     batch_size: int, optional
 
     silent: boolean, optional
@@ -1192,10 +1194,11 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
     trimesh.curvature.discrete_mean_curvature_measure
     """
     def __init__(self, mesh_path, low_med_percentiles=(70, 95),
-                 curvature_func=discrete_gaussian_curvature_measure,
                  curvature_fracs=(0.2, 0.6, 0.2), scaling=None,
-                 batch_size=0, silent=False):
+                 uniform_sampling=False, batch_size=0, silent=False):
         super().__init__()
+        self.uniform_sampling = uniform_sampling
+        self.low_med_percentiles = low_med_percentiles
 
         # Loading the curvatures 
         print("Loading xyz point cloud")
@@ -1232,7 +1235,11 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
 
         #self.diff_curvatures = np.abs(min_curvatures-max_curvatures)
         self.gauss_curvatures = min_curvatures*max_curvatures
-        self.abs_curvatures = 0.5*np.abs(min_curvatures+max_curvatures)
+        #self.abs_curvatures = 0.5*np.abs(min_curvatures+max_curvatures)
+        self.abs_curvatures = np.abs(min_curvatures)+np.abs(max_curvatures)
+
+        #using harris corner detector
+        #self.abs_curvatures = min_curvatures*max_curvatures - 0.05*(min_curvatures+max_curvatures)**2
 
         # planar, edge, corner region fractions
         #self.curvature_fracs = curvature_fracs
@@ -1246,11 +1253,6 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
             l2,
             np.max(self.abs_curvatures)
         ]
-
-        #projet max_dirs on the tangent space
-        # normals = mesh.vertex_normals
-        # dot = normals[:,0]*max_dirs[:,0] + normals[:,1]*max_dirs[:,1] + normals[:,2]*max_dirs[:,2]
-        # proj_dirs = max_dirs - dot[:, np.newaxis]*normals
 
         #bbox scaling
         vertices = point_cloud_curv[:, 0:3] - mesh.bounding_box.centroid
@@ -1285,8 +1287,14 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
         on_surface_count = n_points
         off_surface_count = n_points
 
-        #on_surface_samples=planarEdgeCornerSegmentation(self.surface_samples, on_surface_count, self.diff_curvatures, self.gauss_curvatures, self.curvature_fracs)
-        on_surface_samples = lowMedHighCurvSegmentation(self.surface_samples, on_surface_count, self.abs_curvatures, self.bin_edges, self.curvature_fracs)
+        on_surface_samples = []
+
+        if self.uniform_sampling:
+            idx = np.random.choice(self.surface_samples.size(0), on_surface_count)
+            on_surface_samples = self.surface_samples[idx, ...]
+        else:
+            #on_surface_samples=edgePlanarCornerSegmentation(self.surface_samples, on_surface_count, self.abs_curvatures, self.bin_edges, self.curvature_fracs)
+            on_surface_samples = lowMedHighCurvSegmentation(self.surface_samples, on_surface_count, self.abs_curvatures, self.bin_edges, self.curvature_fracs)
 
         off_surface_points = np.random.uniform(-1, 1, size=(off_surface_count, 3))
         off_surface_sdf, off_surface_normals = self.point_cloud.get_sdf(

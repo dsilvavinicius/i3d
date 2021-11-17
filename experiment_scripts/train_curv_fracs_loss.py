@@ -11,11 +11,19 @@ import configargparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import dataio
-import meta_modules
 import utils
 import training
 import loss_functions
 import modules
+
+
+def parse_list_cmd_arg(cmdarg, sep=",", typ=int):
+    parsed_arg = cmdarg
+    if not isinstance(parsed_arg, list):
+        parsed_arg = parsed_arg.split(sep)
+    for i in range(len(parsed_arg)):
+        parsed_arg[i] = typ(parsed_arg[i])
+    return parsed_arg
 
 
 p = configargparse.ArgumentParser()
@@ -41,8 +49,17 @@ p.add_argument('--w0', type=int, default=30,
 p.add_argument('--mesh_path', type=str, default='./data/armadillo.ply',
                help='Mesh input path')
 
+p.add_argument("--percentiles", default=[70, 95],
+    help="Curvature percentiles to split into low, medium and high curvatures.")
+
+p.add_argument("--curvature_fractions", default=[0.6, 0.2, 0.2],
+    help="Fraction of points with low, medium and high curvature per batch.")
+
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
+
+percentiles = parse_list_cmd_arg(opt.percentiles)
+curvature_fracs = parse_list_cmd_arg(opt.curvature_fractions, typ=float)
 
 available = torch.cuda.is_available()
 print(f"CUDA available? {available}", flush=True)
@@ -54,9 +71,10 @@ print(f"Device: {device}")
 #sdf_dataset = dataio.PointCloudSDFPreComputedCurvatures(
 sdf_dataset = dataio.PointCloudSDFPreComputedCurvaturesDirections(
     opt.mesh_path,
-    # no_sampler=True,
     batch_size=opt.batch_size,
-    scaling="bbox"
+    scaling="bbox",
+    low_med_percentiles=percentiles,
+    curvature_fracs=curvature_fracs
 )
 
 dataloader = DataLoader(
