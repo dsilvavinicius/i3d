@@ -534,129 +534,6 @@ class PointCloudSDF(Dataset):
                                                               'min_curvature': torch.from_numpy(min_curvature).float(),
                                                               'max_curvature': torch.from_numpy(max_curvature).float()}
 
-# void CURVATURE:: LoadEigenObjects(gsl_matrix* T, Vid i)
-# {
-# 	//encontrando auto valores e auto vetores de T
-	
-# 	gsl_eigen_symmv_workspace *wspace = gsl_eigen_symmv_alloc(3);		
-# 	gsl_vector *eigenvals = gsl_vector_alloc(3);	
-# 	gsl_matrix *eigenvecs = gsl_matrix_alloc(3,3);		
-# 	gsl_eigen_symmv(T ,eigenvals, eigenvecs, wspace);		
-# 	gsl_eigen_symmv_free(wspace);		
-# 	gsl_eigen_symmv_sort(eigenvals, eigenvecs, GSL_EIGEN_SORT_ABS_DESC);
-	
-# 	int id_min=-1, id_max = -1;
-	
-# 	if(gsl_vector_get(eigenvals, 0)<gsl_vector_get(eigenvals, 1))
-# 	{id_min = 0; id_max = 1;}
-# 	else {id_min = 1; id_max = 0;}
-	
-# 	Vertex PDe1, PDe2, no;
-	
-# 	k2[i] = gsl_vector_get(eigenvals, id_min);
-# 	k1[i] = gsl_vector_get(eigenvals, id_max);
-		
-# 	PDe1.set_x(gsl_matrix_get(eigenvecs, 0,id_min));
-# 	PDe1.set_y(gsl_matrix_get(eigenvecs, 1,id_min));
-# 	PDe1.set_z(gsl_matrix_get(eigenvecs, 2,id_min));			
-
-# 	PDe2.set_x(gsl_matrix_get(eigenvecs, 0,id_max));
-# 	PDe2.set_y(gsl_matrix_get(eigenvecs, 1,id_max));
-# 	PDe2.set_z(gsl_matrix_get(eigenvecs, 2,id_max));
-
-# 	no.set_x(gsl_matrix_get(eigenvecs, 0,2));
-# 	no.set_y(gsl_matrix_get(eigenvecs, 1,2));
-# 	no.set_z(gsl_matrix_get(eigenvecs, 2,2));
-
-# 	Vertex::normalize(PDe1); Vertex::normalize(PDe2);
-# 	Vertex::normalize(no);
-
-# 	e1[i] = PDe1; e2[i] = PDe2; N[i] = no;
-
-# 	Vertex n, v;
-# 	v = M1->G(i); 
-	
-# 	n.set_x(v.nx()); n.set_y(v.ny()); n.set_z(v.nz());	
-	
-# 	if(Vertex::ProdInterno(n, N[i]) < 0 ) 
-# 		N[i] = N[i]*(-1.);
-# }
-
-
-# double CURVATURE::SignedAngle(HEid he)
-# {
-# 	Vertex n1, n2; //normais aos triangulos
-# 	Vertex a,b,c;  //vertices do triangulo
-	
-# 	//triangulo 1
-# 	a = M1->G(M1->V(he)); 
-# 	b = M1->G(M1->V(M1->next(he)));
-# 	c = M1->G(M1->V(M1->prev(he)));
-	
-# 	n1 = (b-a)^(c-a);
-# 	n1 = n1*(1./Vertex::norma2(n1));//normalizando
-	
-# 	Vertex normalized_edge = b-a; Vertex::normalize(normalized_edge);
-	
-# 	he = M1->O(he);
-	
-# 	//triangulo 2
-# 	a = M1->G(M1->V(he)); 
-# 	b = M1->G(M1->V(M1->next(he)));
-# 	c = M1->G(M1->V(M1->prev(he)));
-	
-# 	n2 = (b-a)^(c-a);
-# 	n2 = n2*(1./Vertex::norma2(n2));//normalizando
-	
-# 	double n1n2 = Vertex::ProdInterno(n1^n2, normalized_edge);
-	
-# 	n1n2 = max(min( 1.,n1n2),-1.);
-
-# 	return n1n2*acos(n1*n2);
-# }
-
-
-# def computeCurvatureTensor(mesh):
-#     for i in range(mesh.vertices):
-#         area = 0
-        
-#         #matriz tensor
-#         Tensor3D[i] = gsl_matrix_calloc(3,3)
-
-#         #for each adjacent vertex j to vertex i       
-#         for j in range(i.neighborhood):
-#             #vector vj-vi
-#             e = M1->G(M1->V(M1->next(he))) -  M1->G(M1->V(he))
-
-#             #dihedral angle between the two adjacent triangles to e                   
-#             angle = signedAngle(he)
-            
-#             len = e.norm()
-        
-#             bc = angle*len
-#             e = e*(1./len)
-            
-#             gsl_matrix_set(Tensor3D[i] , 0 , 0 , gsl_matrix_get(Tensor3D[i], 0, 0)+e.x()*e.x()*bc)
-#             gsl_matrix_set(Tensor3D[i] , 0 , 1 , gsl_matrix_get(Tensor3D[i], 0, 1)+e.x()*e.y()*bc)
-#             gsl_matrix_set(Tensor3D[i] , 0 , 2 , gsl_matrix_get(Tensor3D[i], 0, 2)+e.x()*e.z()*bc)
-
-#             gsl_matrix_set(Tensor3D[i] , 1 , 1 , gsl_matrix_get(Tensor3D[i], 1, 1)+e.y()*e.y()*bc)
-#             gsl_matrix_set(Tensor3D[i] , 1 , 2 , gsl_matrix_get(Tensor3D[i], 1, 2)+e.y()*e.z()*bc)
-
-#             gsl_matrix_set(Tensor3D[i] , 2 , 2 , gsl_matrix_get(Tensor3D[i], 2, 2)+e.z()*e.z()*bc)
-                
-#             area += triangleArea(he)
-        
-        
-#         gsl_matrix_set(Tensor3D[i] , 1 , 0 , gsl_matrix_get(Tensor3D[i], 0, 1))
-#         gsl_matrix_set(Tensor3D[i] , 2 , 0 , gsl_matrix_get(Tensor3D[i], 0, 2))
-#         gsl_matrix_set(Tensor3D[i] , 2 , 1 , gsl_matrix_get(Tensor3D[i], 1, 2))
-        
-#         Tensor3D[i]*= 1./area
-        
-#         #calculando as curvaturas e direcões principais
-#         LoadEigenObjects(Tensor3D[i], i)
-
 
 def calculate_principal_curvatures(mesh: trimesh.base.Trimesh):
     # For each mesh vertex, we pick its 1-star
@@ -1096,28 +973,25 @@ class PointCloudPrincipalDirections(Dataset):
                                                               'principal_directions': torch.from_numpy(principal_directions).float()}
 
 
-def planarEdgeCornerSegmentation(surface_samples, on_surface_count, diff_curvatures, gauss_curvatures, proportions):
-    planar_threshold = 10
-    edge_threshold = 30
+def edgePlanarCornerSegmentation(surface_samples, on_surface_count, detector, bin_edges, proportions):
     on_surface_sampled = 0
-
-    planar_pts = surface_samples[(diff_curvatures < planar_threshold), ...]
-    planar_idx = np.random.choice(
-        range(planar_pts.size(0)),
+    edge_pts = surface_samples[(detector >= bin_edges[0]) & (detector < bin_edges[1]), ...]
+    edge_idx = np.random.choice(
+        range(edge_pts.size(0)),
         size=int(math.floor(proportions[0] * on_surface_count)),
         replace=False
     )
-    on_surface_sampled = len(planar_idx)
+    on_surface_sampled = len(edge_idx)
 
-    edge_pts = surface_samples[(diff_curvatures >= planar_threshold) & (gauss_curvatures < edge_threshold), ...]
-    edge_idx = np.random.choice(
-        range(edge_pts.size(0)),
+    planar_pts = surface_samples[(detector >= bin_edges[1]) & (detector < bin_edges[2]), ...]
+    planar_idx = np.random.choice(
+        range(planar_pts.size(0)),
         size=int(math.ceil(proportions[1] * on_surface_count)),
         replace=False
     )
-    on_surface_sampled += len(edge_idx)
+    on_surface_sampled += len(planar_idx)
 
-    corner_pts = surface_samples[(diff_curvatures >= planar_threshold) & (gauss_curvatures >= edge_threshold), ...]
+    corner_pts = surface_samples[(detector >= bin_edges[2]) & (detector <= bin_edges[3]), ...]
     corner_idx = np.random.choice(
         range(corner_pts.size(0)),
         size=on_surface_count - on_surface_sampled,
@@ -1125,12 +999,10 @@ def planarEdgeCornerSegmentation(surface_samples, on_surface_count, diff_curvatu
     )
 
     return torch.cat((
-        planar_pts[planar_idx, ...],
-        edge_pts[edge_idx, ...],
+        edge_pts[corner_idx, ...],
+        planar_pts[corner_idx, ...],
         corner_pts[corner_idx, ...]
     ), dim=0)
-
-    return on_surface_samples
 
 
 def lowMedHighCurvSegmentation(surface_samples, on_surface_count, abs_curvatures, bin_edges, proportions):
