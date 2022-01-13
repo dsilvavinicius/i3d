@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 from torchmeta.modules import (MetaModule, MetaSequential)
-from torchmeta.modules.utils import get_subdict
+# from torchmeta.modules.utils import get_subdict
+
 import numpy as np
 from collections import OrderedDict
 import math
@@ -77,7 +78,7 @@ class FCBlock(MetaModule):
         if params is None:
             params = OrderedDict(self.named_parameters())
 
-        output = self.net(coords, params=get_subdict(params, 'net'))
+        output = self.net(coords, params=self.get_subdict(params, 'net'))
         return output
 
 
@@ -108,7 +109,7 @@ class SingleBVPNet(MetaModule):
         coords_org = model_input['coords'].clone().detach().requires_grad_(True)
         coords = coords_org
 
-        output = self.net(coords, get_subdict(params, 'net'))
+        output = self.net(coords, self.get_subdict(params, 'net'))
         return {'model_in': coords_org, 'model_out': output}
 
 

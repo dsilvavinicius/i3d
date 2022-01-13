@@ -31,7 +31,7 @@ def main():
         "--resolution", "-r", type=int, default=256,
         help="Marching cubes resolution"
     )
-    parser.add_argument('--w0', type=int, default=30,
+    parser.add_argument('--w0', "-w0", type=int, default=30,
                help='Multiplicative factor for the frequencies')
 
     args = parser.parse_args()
@@ -44,11 +44,15 @@ def main():
 
     params = dict()
 
+
+    script_meshing = "test_two_sdfs"
+
     checkpoint_dir = os.path.join(args.base_dir, "checkpoints")
 
     for c in args.checkpoints:
+
         experiment_name = args.base_dir.split("/")[-1] + f"_checkpoint-{c}"
-        default_args = f"python experiment_scripts/test_sdf.py --experiment_name={experiment_name} --w0={args.w0}"
+        default_args = f"python experiment_scripts/{script_meshing}.py --experiment_name={experiment_name} --w0={args.w0}"
 
         model_name = ""
         if c == "final":
@@ -73,7 +77,7 @@ def main():
             try:
                 subprocess.run(lex_args, check=True)
             except subprocess.CalledProcessError:
-                print(f"[WARN] Error when calling test_sdf.py with args: \"{lex_args}\"")
+                print(f"[WARN] Error when calling {script_meshing}.py with args: \"{lex_args}\"")
                 resolution_divisor *= 2
                 continue
             else:

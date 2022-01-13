@@ -1065,7 +1065,7 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
     trimesh.curvature.discrete_gaussian_curvature_measure,
     trimesh.curvature.discrete_mean_curvature_measure
     """
-    def __init__(self, mesh_path, low_med_percentiles=(70, 95),
+    def __init__(self, mesh_path, xyz_path, low_med_percentiles=(70, 95),
                  curvature_fracs=(0.2, 0.6, 0.2), scaling=None,
                  uniform_sampling=False, batch_size=0, silent=False):
         super().__init__()
@@ -1074,7 +1074,7 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
 
         # Loading the curvatures 
         print("Loading xyz point cloud")
-        point_cloud_curv = np.genfromtxt('./data/armadillo_tensor.xyz')
+        point_cloud_curv = np.genfromtxt(xyz_path)
         #point_cloud_curv = np.genfromtxt('./data/armadillo_curv_dir.xyz')
         #remove nan
         point_cloud_curv = point_cloud_curv[~np.isnan(point_cloud_curv[:, 4])] 
@@ -1082,8 +1082,8 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
 
         #exporting ply (point, curvatures, normal, principal direction):  x, y, z, k1, k2, nx, ny, nz, kx, ky, kz       
         #coords = point_cloud[:, :3]
-        min_curvatures = -point_cloud_curv[:, 4]# the signal was changed
-        max_curvatures = -point_cloud_curv[:, 3]
+        min_curvatures = point_cloud_curv[:, 4]# the signal was changed
+        max_curvatures = point_cloud_curv[:, 3]
         normals = point_cloud_curv[:, 5:8] #we should use mesh.vertex_normals because the sdf is computed using it
         max_dirs = point_cloud_curv[:, 8:11]
 
@@ -1143,8 +1143,21 @@ class PointCloudSDFPreComputedCurvaturesDirections(Dataset):
             print("Done preparing the dataset.")
 
     def __len__(self):
-        #return self.surface_samples.size(0) // self.batch_size
-        return 100000 // self.batch_size
+    #    return self.surface_samples.size(0) // self.batch_size
+
+        lenght = self.surface_samples.size(0) // (self.batch_size) + 1
+        # lenght = 17
+        return lenght
+
+        # # percentile of med curv samples times 1.2 used when we are using the whole dataset
+        # p2o = 1.2*(self.low_med_percentiles[1]-self.low_med_percentiles[0])/100
+        
+        # # percentile of med curv samples times 1.2 used when we are using a percentile p2o/p2 of dataset
+        # p2 = self.curvature_fracs[1]
+
+        # lenght = int(math.floor((p2o/p2)*self.surface_samples.size(0))) // self.batch_size
+        # return lenght
+        # #return 100000 // self.batch_size
         #return 50000 // self.batch_size
         #return 10000 // self.batch_size
 

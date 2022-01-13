@@ -29,7 +29,7 @@ def true_sdf(model_output, gt):
     '''
     gt_sdf = gt['sdf']
     gt_normals = gt['normals']
-
+    
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
 
@@ -39,6 +39,62 @@ def true_sdf(model_output, gt):
             'sdf_off_surf': sdf_constraint_off_surf(gt_sdf, pred_sdf).mean() * 2e2,
             'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2 ,#* 1e1,
             'grad_constraint': eikonal_constraint(gradient).mean() * 5e1}#1e1}
+
+
+# learn a second model that add details to a previously trained model
+class loss_add_detail(torch.nn.Module):
+    def __init__(self, trained_model):
+        super().__init__()
+        # Define the model.
+        self.model = trained_model
+        self.model.cuda()
+
+    def forward(self, model_output, gt):
+
+         gt_sdf = gt['sdf']
+         gt_normals = gt['normals']
+         
+         #local
+         coords = model_output['model_in']
+         pred_sdf = model_output['model_out']
+
+         trained_model = self.model(coords)
+         trained_coords = trained_model['model_in']
+         trained_sdf = trained_model['model_out']
+
+         gradient = diff_operators.gradient(pred_sdf, coords) + diff_operators.gradient(trained_sdf, trained_coords)
+         
+         # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+         return {'sdf_on_surf': sdf_constraint_on_surf(gt_sdf, pred_sdf + trained_sdf).mean() * 3e3,
+                  'sdf_off_surf': sdf_constraint_off_surf(gt_sdf, pred_sdf + trained_sdf).mean() * 2e2,
+                  'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2 ,#* 1e1,
+                  'grad_constraint': eikonal_constraint(gradient).mean() * 5e1}#1e1}
+
+
+#learn the mean curvature of a neural surface
+class loss_mean_curvature(torch.nn.Module):
+    def __init__(self, trained_model):
+        super().__init__()
+        # Define the model.
+        self.model = trained_model
+        self.model.cuda()
+
+    def forward(self, model_output, gt):
+   
+         coords = model_output['model_in']
+         pred_curvature = model_output['model_out']
+
+         trained_model = self.model(coords)
+         global_coords = trained_model['model_in']
+         global_sdf    = trained_model['model_out']
+
+         # ground truth mean curvature
+         curvature = diff_operators.mean_curvature(global_sdf, global_coords)
+
+         constraint = (curvature - pred_curvature)**2
+
+         return {'constraint': constraint.mean()}
+
 
 def loss_curvatures(model_output, gt):
     '''Uses true SDF value off surface and tries to fit gaussian curvatures on
@@ -67,11 +123,11 @@ def loss_curvatures(model_output, gt):
     dirs_constraint = dirs_constraint + 0.1*aux_dirs_constraint
 
    #removing umbilical points of the pred sdf
-    dirs_constraint = torch.where(pred_dirs[0][...,3].unsqueeze(-1) == 0, dirs_constraint, torch.zeros_like(dirs_constraint))
+    #dirs_constraint = torch.where(pred_dirs[0][...,3].unsqueeze(-1) == 0, dirs_constraint, torch.zeros_like(dirs_constraint))
 
     #removing problematic curvatures and planar points
     planar_curvature = 0.5*torch.abs(gt_min_curvature-gt_max_curvature)
-    dirs_constraint = torch.where(planar_curvature > 2.5  , dirs_constraint, torch.zeros_like(dirs_constraint))
+    dirs_constraint = torch.where(planar_curvature > 10  , dirs_constraint, torch.zeros_like(dirs_constraint))
     dirs_constraint = torch.where(planar_curvature < 5000, dirs_constraint, torch.zeros_like(dirs_constraint))
 
     return {'sdf_on_surf': sdf_constraint_on_surf(gt_sdf, pred_sdf).mean() * 3e3,

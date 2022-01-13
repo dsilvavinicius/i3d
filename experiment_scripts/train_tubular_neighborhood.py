@@ -70,8 +70,7 @@ print(f"CUDA available? {available}", flush=True)
 device = torch.device("cuda:0" if available else "cpu")
 print(f"Device: {device}")
 
-# sdf_dataset = dataio.PointCloudSDFCurvatures(
-#sdf_dataset = dataio.PointCloudSDFPreComputedCurvatures(
+# TODO: update the dataio since we do not need the curvatures
 sdf_dataset = dataio.PointCloudSDFPreComputedCurvaturesDirections(
     opt.mesh_path,
     opt.xyz_path,
@@ -90,10 +89,30 @@ dataloader = DataLoader(
     num_workers=0,
 )
 
-# Define the model.
-#model = modules.SingleBVPNet(typ="sine", hidden_features=256,
-#                             num_hidden_layers=3, in_features=3, w0=opt.w0)
-model = modules.SingleBVPNet(typ="sine", hidden_features=64,
+# Define global model
+class SDFTreined(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Define the model.
+        self.model = modules.SingleBVPNet(
+            typ="sine",
+            final_layer_factor=1,
+            in_features=3,
+            hidden_features = 64,
+            num_hidden_layers=1,
+            w0=30
+        )
+        self.model.load_state_dict(torch.load('./logs/armadillo_b10000_w0-30_rede-1x64/checkpoints/model_final.pth'))
+        self.model.cuda()
+
+    def forward(self, coords):
+        model_in = {'coords': coords}
+        return self.model(model_in)#['model_out']
+
+treined_model = SDFTreined()
+
+# Define the local model.
+model = modules.SingleBVPNet(typ="sine", hidden_features=128,
                               num_hidden_layers=1, in_features=3, w0=opt.w0)
 model.to(device)
 
@@ -101,9 +120,7 @@ print(f"Is model on GPU? {next(model.parameters()).is_cuda}", flush=True)
 
 
 # Define the loss
-#loss_fn = loss_functions.sdf_weighted
-loss_fn = loss_functions.true_sdf
-#loss_fn = loss_functions.true_sdf_curvature
+loss_fn = loss_functions.loss_add_detail(treined_model)
 summary_fn = utils.write_sdf_summary
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)

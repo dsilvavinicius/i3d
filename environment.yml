@@ -1,4 +1,4 @@
-name: hodl
+name: hodl-biased-curv
 channels:
   - pytorch
   - conda-forge
