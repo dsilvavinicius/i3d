@@ -305,6 +305,12 @@ figure {
 		</figure>
 
 		<figure style="width: 100%; float: left">
+			<p class="caption_justify">
+				<b>Armadillo curvature rendering. An important advantage of using neural implicit functions to represent surfaces is that we can compute their differentiable objects analytically. The image was generated using a transfer function to visualize the mean curvature of the neural surface. This function relates points with high/medium/low curvatures to the red/white/blue colors. Our model enables both normal vectors and mean curvature to be calculated analytically through their formulas using <code>torch.autograd</code>.</b>.
+			</p>
+		</figure>
+
+		<figure style="width: 100%; float: left">
 			<video class="centered" width="100%" autoplay muted loop playsinline>
 				<source src="assets/i3d_teaser.mp4" type="video/mp4">
 				Your browser does not support the video tag.
@@ -330,14 +336,15 @@ figure {
 		<h2>Abstract</h2>
 		<hr>
 		<p>
-			We introduce MIP-plicits, a novel approach for rendering 3D and 4D Neural Implicits that divide the problem into macro and meso components. We rely on the iterative nature of the sphere tracing algorithm, the spatial continuity of the Neural Implicit representation, and the association of the network architecture complexity with the details it can represent. This approach does not rely on spatial data structures, and can be used to mix Neural Implicits trained previously and separately as detail levels.<br><br>
-			
-			We also introduce Neural Implicit Normal Mapping, which is a core component of the problem factorization. This concept is very close and analogous to the classic normal mapping on meshes, broadly used in Computer Graphics.<br><br>
-			
-			Finally, we derive an analytic equation and an algorithm to simplify the normal calculation of Neural Implicits, adapted to be evaluated by the General Matrix Multiply algorithm (GEMM). Current approaches rely on finite differences, which impose additional inferences on auxiliary points and discretization error. 
+			We introduce a neural implicit framework that bridges discrete differential geometry of triangle meshes and continuous differential geometry of neural implicit surfaces. It exploits the differentiable properties of neural networks and the discrete geometry of triangle meshes to approximate them as the zero-level sets of neural implicit functions.<br><br>
+
+			To train a neural implicit function, we propose a loss function that allows terms with high-order derivatives, such as the alignment between the principal directions, to learn more geometric details. During training, we consider a non-uniform sampling strategy based on the discrete curvatures of the triangle mesh to access points with more geometric details. This sampling implies faster learning while preserving geometric accuracy.<br><br>
+
+			We present the analytical differential geometry formulas for neural surfaces, such as normal vectors and curvatures. We use them to render the surfaces using sphere tracing. Additionally, we propose a network optimization based on singular value decomposition to reduce the number of parameters.
 		</p>
 	</section>
 
+	<!-- @TiagoNovello
 	<section id="overview"/>
 		<h2>Overview</h2>
 		<hr>
@@ -353,99 +360,21 @@ figure {
 			Suppose we want to find the intersection of a ray with the zero level-set of a finer Neural Implicit Surface S<sub>j + 1</sub> using the intersection with a coarser Neural Implicit Surface S<sub>j</sub> as acceleration. To ensure that the ray does not miss any meaninful intersection, it suffices to intersect with the zero level-set of the neighborhood of S<sub>j</sub> that contains S<sub>j + 1</sub>. This is the <b>LOD condition</b>.<br/>
 		</p>
 	</section>
+	-->
 
 	<section id="results">
 		<h2>Results</h2>
 		<hr>
 
-		<h3>Armadillo</h3>
+		<h3>Bunny</h3>
 		<hr>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Coarse
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Neural Implicit Normal Mapping
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Baseline
-			</p>
-		</figure>
 
 		<figure>
 			<video class="centered" width="100%" autoplay muted loop playsinline>
-				<source src="assets/armadillo.mp4" type="video/mp4">
+				<source src="assets/bunny.mp4" type="video/mp4">
 				Your browser does not support the video tag.
 			</video>
 		</figure>
-
-		<h3>Happy Buddha</h3>
-		<hr>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Coarse
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Neural Implicit Normal Mapping
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Baseline
-			</p>
-		</figure>
-
-		<figure>
-			<video class="centered" width="100%" autoplay muted loop playsinline>
-				<source src="assets/buddha.mp4" type="video/mp4">
-				Your browser does not support the video tag.
-			</video>
-		</figure>
-
-		<h3>Lucy</h3>
-		<hr>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Coarse
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Neural Implicit Normal Mapping
-			</p>
-		</figure>
-
-		<figure style="width: 33%; float: left">
-			<p class="caption_bold">
-				Baseline
-			</p>
-		</figure>
-
-		<figure>
-			<video class="centered" width="100%" autoplay muted loop playsinline>
-				<source src="assets/lucy.mp4" type="video/mp4">
-				Your browser does not support the video tag.
-			</video>
-		</figure>
-
-		<p class="caption_justify">
-			Neural Implicit Normal Mapping the using a MIP-plicit (center). The normals of the detailed Neural Implicit on the right are mapped into the coarse version on the left.<br/>
-		</p>
-
 	</section>
 
 	<section id="paper">
@@ -453,19 +382,18 @@ figure {
 		<hr>
 		<div class="flex-row">
 			<div style="box-sizing: border-box; padding: 16px; margin: auto;">
-				<a href="assets/silva2022mip-plicits.pdf"><img class="screenshot" src="assets/paper-thumbnail.png"></a>
+				<a href="assets/novello2022differential.pdf"><img class="screenshot" src="assets/paper-thumbnail.png"></a>
 			</div>
 			<div style="width: 60%">
-				<p><b>MIP-plicits: Level of Detail Factorization of Neural Implicits Sphere Tracing</b></p>
-				<p>Vinícius da Silva, Tiago Novello, Guilherme Schardong, Luiz Schirmer, Hélio Lopes and Luiz Velho</p>
+				<p><b>Differential Geometry in Neural Implicits</b></p>
+				<p>Tiago Novello, Vinícius da Silva, Guilherme Schardong, Luiz Schirmer, Hélio Lopes and Luiz Velho</p>
 
-				<div><span class="material-icons"> description </span><a href="assets/silva2022mip-plicits.pdf"> Paper preprint (PDF, 4.2 MB)</a></div>
-				<div><span class="material-icons"> description </span><a href="http://arxiv.org/abs/2201.09147"> arXiv version</a></div>
-				<div><span class="material-icons"> insert_comment </span><a href="assets/silva2022mip-plicits.bib"> BibTeX</a></div>
-				<div><span class="material-icons"> videocam </span><a href="https://youtu.be/qOY9lBGMxB4"> Video</a></div>
-				<div><span class="material-icons"> videocam </span><a href="https://youtu.be/NtF7hV6l0YY"> Live</a></div>
+				<div><span class="material-icons"> description </span><a href="assets/novello2022differential.pdf"> Paper preprint (PDF, 4.2 MB)</a></div>
+				<div><span class="material-icons"> description </span><a href="https://arxiv.org/abs/2201.09263"> arXiv version</a></div>
+				<div><span class="material-icons"> insert_comment </span><a href="assets/novello2022differential.bib"> BibTeX</a></div>
+				<div><span class="material-icons"> videocam </span><a href="https://youtu.be/ugeR3MVUGng"> Video</a></div>
 
-				<p>Please send feedback and questions to <a href="https://dsilvavinicius.github.io">Vinícius da Silva</a>.</p>
+				<p>Please send feedback and questions to <a href="https://sites.google.com/site/tiagonovellodebrito">Tiago Novello</a>.</p>
 			</div>
 		</div>
 	</section>
@@ -473,11 +401,11 @@ figure {
 	<section id="bibtex">
 		<h2>Citation</h2>
 		<hr>
-		<pre><code>@article{silva2022mip-plicits,
-	title = {MIP-plicits: Level of Detail Factorization of Neural Implicits Sphere Tracing},
-	author = {da Silva, Vin\'icius and Novello, Tiago and Schardong, Guilherme and Schirmer,
+		<pre><code>@article{novello2022differential,
+	title = {Differential Geometry in Neural Implicits},
+	author = {Novello, Tiago and da Silva, Vin\'icius and Schardong, Guilherme and Schirmer,
 		Luiz and Lopes, H\'elio and Velho, Luiz},
-	journal = {arXiv:2201.09147},
+	journal = {arXiv:2201.09263},
 	year = {2022},
 	month = jan
 }
@@ -504,7 +432,7 @@ figure {
 				Real-time Rendering with Implicit 3D Surfaces</a> and project page under the <a href=https://opensource.org/licenses/MIT>MIT License</a>. This website is based on that page.
 			<br/>
 			<br/>
-			<em>We also thank the <a href="https://graphics.stanford.edu">Stanford Computer Graphics Laboratory</a> for the Bunny, Dragon, Armadillo, Happy Buddha, and Lucy models, acquired through the <a href="http://graphics.stanford.edu/data/3Dscanrep/">Stanford 3D scan repository</a>.
+			<em>We also thank the <a href="https://graphics.stanford.edu">Stanford Computer Graphics Laboratory</a> for the Bunny, Dragon, Armadillo, and Happy Buddha, acquired through the <a href="http://graphics.stanford.edu/data/3Dscanrep/">Stanford 3D scan repository</a>.
 			</p>
 		</div>
 	</section>
