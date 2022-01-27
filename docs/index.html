@@ -348,15 +348,15 @@ figure {
 		<h2>Overview</h2>
 		<hr>
 		<p>	
-  			The main contribution of our work is a global geometric representation in the continuous setting using neural networks as implicit functions. Besides its compact representation that captures geometrical details, this model is robust for shape analysis and efficient for computation since we have its derivatives in closed form.
+  			The main contribution of our work is a global geometric representation in the continuous setting using neural networks as implicit functions. Besides its compact representation that captures geometrical details, this model is robust for shape analysis and efficient for computation since we have its derivatives in closed form.<br>
 
-			Specifically, we propose a loss functional that allows the exploration of tools from continuous differential geometry during the training of the neural implicit function. This provides high fidelity when reconstructing geometric features of the surface.
+			Specifically, we propose a <\i>loss functional<\i> that allows the exploration of tools from continuous differential geometry during the training of the neural implicit function. This provides high fidelity when reconstructing geometric features of the surface.<br>
 
-			During the training of the neural implicit function, we use the discrete differential geometry of the dataset (triangle mesh) to sample important regions. This provides a robust and fast training without losing geometrical details.
+			During the training of the neural implicit function, we use the discrete differential geometry of the dataset (triangle mesh) to sample important regions. This provides a robust and fast training without losing geometrical details.<br>
 
-			Defining the appropriate depth/width of the neural implicit function to represent a given surface remains an open problem. However, if the network has more capacity than is necessary, we propose an optimization of its parameters using SVD. This reduces the number of parameters allowing for efficient inference. When the network cannot represent a given surface, we increase the dimension of its hidden domains.
+			Defining the appropriate depth/width of the neural implicit function to represent a given surface remains an open problem. However, if the network has more capacity than is necessary, we propose an optimization of its parameters using SVD. This reduces the number of parameters allowing for efficient inference. When the network cannot represent a given surface, we increase the dimension of its hidden domains.<br>
 
-			To visualize neural implicit surfaces in real-time, we present an implementation of the (neural) sphere tracing in GPU. We also adopt the above network optimization for efficient memory usage during the sphere tracing.
+			To visualize neural implicit surfaces in real-time, we present an implementation of the (neural) sphere tracing in GPU. We also adopt the above network optimization for efficient memory usage during the sphere tracing.<br>
 		</p>
 	</section>
 	
