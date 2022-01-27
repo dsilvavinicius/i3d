@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<html>
+
+<style type="text/css">
+body {
+	font-family: "Titillium Web", "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+	font-weight: 300;
+	font-size: 17px;
+	margin-left: auto;
+	margin-right: auto;
+	width: 980px;
+}
+h1 {
+	font-weight:300;
+	line-height: 1.15em;
+}
+
+h2 {
+	font-size: 1.75em;
+}
+a:link,a:visited {
+	color: #1367a7;
+	text-decoration: none;
+}
+a:hover {
+	color: #208799;
+}
+h1, h2, h3 {
+	text-align: center;
+}
+h1 {
+	font-size: 40px;
+	font-weight: 500;
+}
+h2, h3 {
+	font-weight: 400;
+	margin: 16px 0px 4px 0px;
+}
+.paper-title {
+	padding: 16px 0px 16px 0px;
+}
+section {
+	margin: 32px 0px 32px 0px;
+	text-align: justify;
+	clear: both;
+}
+.col-5 {
+	 width: 20%;
+	 float: left;
+}
+.col-4 {
+	 width: 25%;
+	 float: left;
+}
+.col-3 {
+	 width: 33%;
+	 float: left;
+}
+.col-2 {
+	 width: 50%;
+	 float: left;
+}
+.row, .author-row, .affil-row {
+	 overflow: auto;
+}
+.author-row, .affil-row {
+	font-size: 20px;
+}
+.row {
+	margin: 16px 0px 16px 0px;
+}
+.authors {
+	font-size: 18px;
+}
+.affil-row {
+	margin-top: 16px;
+}
+.teaser {
+	max-width: 100%;
+}
+.text-center {
+	text-align: center;
+}
+.screenshot {
+	width: 256px;
+	border: 1px solid #ddd;
+}
+.screenshot-lg {
+	width: 512px;
+	border: 1px solid #ddd;
+	display: block;
+  	margin-left: auto;
+  	margin-right: auto;
+}
+.screenshot-el {
+	margin-bottom: 16px;
+}
+hr {
+	height: 1px;
+	border: 0;
+	border-top: 1px solid #ddd;
+	margin: 0;
+}
+.material-icons {
+	vertical-align: -6px;
+}
+p {
+	line-height: 1.25em;
+}
+.caption_justify {
+	font-size: 16px;
+	/*font-style: italic;*/
+	color: #666;
+	text-align: justify;
+	margin-top: 0px;
+	margin-bottom: 64px;
+}
+.caption {
+	font-size: 16px;
+	/*font-style: italic;*/
+	color: #666;
+	text-align: center;
+	margin-top: 8px;
+	margin-bottom: 64px;
+}
+.caption_inline {
+	font-size: 16px;
+	/*font-style: italic;*/
+	color: #666;
+	text-align: center;
+	margin-top: 8px;
+	margin-bottom: 0px;
+}
+.caption_bold {
+	font-size: 16px;
+	/*font-style: italic;*/
+	color: #666;
+	text-align: center;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	font-weight: bold;
+}
+video {
+	display: block;
+	margin: auto;
+}
+figure {
+	display: block;
+	margin: auto;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+figure {
+	display: block;
+	margin: auto;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+#bibtex pre {
+	font-size: 14px;
+	background-color: #eee;
+	padding: 16px;
+}
+.blue {
+	color: #2c82c9;
+	font-weight: bold;
+}
+.orange {
+	color: #d35400;
+	font-weight: bold;
+}
+.flex-row {
+	display: flex;
+	flex-flow: row wrap;
+	justify-content: space-around;
+	padding: 0;
+	margin: 0;
+	list-style: none;
+}
+.paper-btn {
+  position: relative;
+  text-align: center;
+
+  display: inline-block;
+  margin: 8px;
+  padding: 8px 8px;
+
+  border-width: 0;
+  outline: none;
+  border-radius: 2px;
+
+  background-color: #1367a7;
+  color: #ecf0f1 !important;
+  font-size: 20px;
+  width: 100px;
+  font-weight: 600;
+}
+.paper-btn-parent {
+	display: flex;
+	justify-content: center;
+	margin: 16px 0px;
+}
+.paper-btn:hover {
+	opacity: 0.85;
+}
+.container {
+	margin-left: auto;
+	margin-right: auto;
+	padding-left: 16px;
+	padding-right: 16px;
+}
+.venue {
+	color: #1367a7;
+}
+</style>
+<link href='https://fonts.googleapis.com/css?family=Titillium+Web:400,600,400italic,600italic,300,300italic' rel='stylesheet' type='text/css'>
+<head>
+	<title>MIP-plicits: Level of Detail Factorization of Neural Implicits Sphere Tracing</title>
+	<meta property="og:description" content="Differential Geometry in Neural Implicits"/>
+	<meta property="og:image" itemprop="image" content="https://dsilvavinicius.github.io/differential_geometry_in_neural_implicits/assets/representative.JPEG">
+	<link href="https://fonts.googleapis.com/css2?family=Material+Icons" rel="stylesheet">
+
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:creator" content="@dsilvavinicius">
+	<meta name="twitter:title" content="Differential Geometry in Neural Implicits">
+	<meta name="twitter:description" content="A new paper which bridges Discrete Differential Geometry in meshes and (Continuous) Differential Geometry in Neural Implicits.">
+	<meta name="twitter:image" content="https://dsilvavinicius.github.io/differential_geometry_in_neural_implicits/assets/representative.JPEG">
+</head>
+
+
+<body>
+<div class="container">
+	<div class="paper-title">
+		<h1>Differential Geometry in Neural Implicits</h1>
+	</div>
+
+	<div id="authors">
+        <div class="author-row">
+            <div class="col-3 text-center"><a href="https://sites.google.com/site/tiagonovellodebrito">Tiago Novello</a><sup>1*</sup></div>
+			<div class="col-3 text-center"><a href="https://schardong.github.io">Guilherme Schardong</a><sup>2*</sup></div>
+			<div class="col-3 text-center"><a href="http://www.inf.puc-rio.br/~lopes">Hélio Lopes</a><sup>2*</sup></div>
+		</div>
+		<div class="author-row">
+			<div class="col-3 text-center"><a href="https://dsilvavinicius.github.io">Vinícius da Silva</a><sup>2*</sup></div>
+			<div class="col-3 text-center"><a href="https://www.lschirmer.com/">Luiz Schirmer</a><sup>3*</sup></div>
+			<div class="col-3 text-center"><a href="https://lvelho.impa.br">Luiz Velho</a><sup>1*</sup></div>
+		</div>
+
+        <div class="affil-row">
+			<div class="col-3 text-center"><sup>1</sup>IMPA</div>
+            <div class="col-3 text-center"><sup>2</sup>PUC-Rio</div>
+            <div class="col-3 text-center"><sup>3</sup>University of Coimbra</div>
+        </div>
+
+		<div style="clear: both">
+			<div class="paper-btn-parent">
+				<a class="paper-btn" href="assets/novello2022differential.pdf">
+					<span class="material-icons"> description </span>
+					Paper
+				</a>
+				<a class="paper-btn" href="https://youtu.be/qOY9lBGMxB4">
+					<span class="material-icons"> videocam </span>
+					Video
+				</a>
+				<!--<a class="paper-btn" href="https://github.com/dsilvavinicius/mip-plicits">
+					<span class="material-icons"> code </span>
+					Code
+				</a>-->
+			</div>
+		</div>
+	</div>
+
+	<section id="teaser-videos">
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Coarse
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Neural Implicit Normal Mapping
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Baseline
+			</p>
+		</figure>
+
+		<figure style="width: 100%; float: left">
+			<video class="centered" width="100%" autoplay muted loop playsinline>
+				<source src="assets/4d.mp4" type="video/mp4">
+				Your browser does not support the video tag.
+			</video>
+		</figure>
+
+		<figure style="width: 100%; float: left">
+			<p class="caption_justify">
+				<b>MIP-plicits</b> are sets of <b>Neural Implicits</b> trained on the same data and sorted by capacity. They support <b>Level of Detail</b> and <b>animation</b> without the need for spatial data structures. This is achieved by letting the <b>Sphere Tracing</b> infer distance from the <b>MIP-plicit</b>, a procedure we call <b>Multiscale Sphere Tracing</b>. This approach also enables normals to be transferred between <b>Neural Implicits</b>, what we call <b>Neural Implicit Normal Mapping</b>.
+			</p>
+		</figure>
+	</section>
+
+	<section id="news">
+		<h2>News</h2>
+		<hr>
+		<div class="row">
+			<div><span class="material-icons"> description </span> [Jan 25th 2022] Page online.</div>
+			<div><span class="material-icons"> description </span> [Jan 26th 2022] Results video is available.</div>
+			<div><span class="material-icons"> description </span> [Jan 26th 2022] Live video is available.</div>
+		</div>
+	</section>
+	
+	<section id="abstract"/>
+		<h2>Abstract</h2>
+		<hr>
+		<p>
+			We introduce MIP-plicits, a novel approach for rendering 3D and 4D Neural Implicits that divide the problem into macro and meso components. We rely on the iterative nature of the sphere tracing algorithm, the spatial continuity of the Neural Implicit representation, and the association of the network architecture complexity with the details it can represent. This approach does not rely on spatial data structures, and can be used to mix Neural Implicits trained previously and separately as detail levels.<br><br>
+			
+			We also introduce Neural Implicit Normal Mapping, which is a core component of the problem factorization. This concept is very close and analogous to the classic normal mapping on meshes, broadly used in Computer Graphics.<br><br>
+			
+			Finally, we derive an analytic equation and an algorithm to simplify the normal calculation of Neural Implicits, adapted to be evaluated by the General Matrix Multiply algorithm (GEMM). Current approaches rely on finite differences, which impose additional inferences on auxiliary points and discretization error. 
+		</p>
+	</section>
+
+	<section id="overview"/>
+		<h2>Overview</h2>
+		<hr>
+		<p>
+			The key idea behind <b>MIP-plicits</b> is to explore the iterative nature of the <b>Sphere Tracing</b>, and the fact that it outputs 3D points in each iteration. Those points are defined in the underlying space of the <b>SDF</b> of a <b>Neural Implicit</b>, but also in the space of any slightly different <b>SDF</b> of another <b>Neural Implicit</b> trained on the same data (i.e. with different capacity). We can use those 3D points to transit between the underlying spaces of two <b>SDFs</b>, given that the zero level-set of the finer <b>Neural Implicit</b> is in the neighborhood of the zero level-set of the coarser <b>Neural Implicit</b>. We call this the <b>LOD condition</b>. It can also be used to map the normals between the <b>Neural Implicits</b>, which we call <b>Neural Implicit Normal Mapping</b>. Differently from <b>classic normal mapping</b>, this approach is volumetric. Thus, it does not need parametrizations, neither does need to deal with distortions from projection. The <b>LOD condition</b> can be used with both 3D and 4D (3D plus time) <b>Neural Implicits</b>.
+		</p>
+
+		<figure style="width: 100%; float: center">
+			<img class="screenshot-lg" src="assets/lod_condition.png">
+		</figure>
+
+		<p class="caption_justify">
+			Suppose we want to find the intersection of a ray with the zero level-set of a finer Neural Implicit Surface S<sub>j + 1</sub> using the intersection with a coarser Neural Implicit Surface S<sub>j</sub> as acceleration. To ensure that the ray does not miss any meaninful intersection, it suffices to intersect with the zero level-set of the neighborhood of S<sub>j</sub> that contains S<sub>j + 1</sub>. This is the <b>LOD condition</b>.<br/>
+		</p>
+	</section>
+
+	<section id="results">
+		<h2>Results</h2>
+		<hr>
+
+		<h3>Armadillo</h3>
+		<hr>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Coarse
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Neural Implicit Normal Mapping
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Baseline
+			</p>
+		</figure>
+
+		<figure>
+			<video class="centered" width="100%" autoplay muted loop playsinline>
+				<source src="assets/armadillo.mp4" type="video/mp4">
+				Your browser does not support the video tag.
+			</video>
+		</figure>
+
+		<h3>Happy Buddha</h3>
+		<hr>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Coarse
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Neural Implicit Normal Mapping
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Baseline
+			</p>
+		</figure>
+
+		<figure>
+			<video class="centered" width="100%" autoplay muted loop playsinline>
+				<source src="assets/buddha.mp4" type="video/mp4">
+				Your browser does not support the video tag.
+			</video>
+		</figure>
+
+		<h3>Lucy</h3>
+		<hr>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Coarse
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Neural Implicit Normal Mapping
+			</p>
+		</figure>
+
+		<figure style="width: 33%; float: left">
+			<p class="caption_bold">
+				Baseline
+			</p>
+		</figure>
+
+		<figure>
+			<video class="centered" width="100%" autoplay muted loop playsinline>
+				<source src="assets/lucy.mp4" type="video/mp4">
+				Your browser does not support the video tag.
+			</video>
+		</figure>
+
+		<p class="caption_justify">
+			Neural Implicit Normal Mapping the using a MIP-plicit (center). The normals of the detailed Neural Implicit on the right are mapped into the coarse version on the left.<br/>
+		</p>
+
+	</section>
+
+	<section id="paper">
+		<h2>Paper</h2>
+		<hr>
+		<div class="flex-row">
+			<div style="box-sizing: border-box; padding: 16px; margin: auto;">
+				<a href="assets/silva2022mip-plicits.pdf"><img class="screenshot" src="assets/paper-thumbnail.png"></a>
+			</div>
+			<div style="width: 60%">
+				<p><b>MIP-plicits: Level of Detail Factorization of Neural Implicits Sphere Tracing</b></p>
+				<p>Vinícius da Silva, Tiago Novello, Guilherme Schardong, Luiz Schirmer, Hélio Lopes and Luiz Velho</p>
+
+				<div><span class="material-icons"> description </span><a href="assets/silva2022mip-plicits.pdf"> Paper preprint (PDF, 4.2 MB)</a></div>
+				<div><span class="material-icons"> description </span><a href="http://arxiv.org/abs/2201.09147"> arXiv version</a></div>
+				<div><span class="material-icons"> insert_comment </span><a href="assets/silva2022mip-plicits.bib"> BibTeX</a></div>
+				<div><span class="material-icons"> videocam </span><a href="https://youtu.be/qOY9lBGMxB4"> Video</a></div>
+				<div><span class="material-icons"> videocam </span><a href="https://youtu.be/NtF7hV6l0YY"> Live</a></div>
+
+				<p>Please send feedback and questions to <a href="https://dsilvavinicius.github.io">Vinícius da Silva</a>.</p>
+			</div>
+		</div>
+	</section>
+
+	<section id="bibtex">
+		<h2>Citation</h2>
+		<hr>
+		<pre><code>@article{silva2022mip-plicits,
+	title = {MIP-plicits: Level of Detail Factorization of Neural Implicits Sphere Tracing},
+	author = {da Silva, Vin\'icius and Novello, Tiago and Schardong, Guilherme and Schirmer,
+		Luiz and Lopes, H\'elio and Velho, Luiz},
+	journal = {arXiv:2201.09147},
+	year = {2022},
+	month = jan
+}
+
+</code></pre>
+	</section>
+
+	<section id="acknowledgements">
+		<h2>Acknowledgements</h2>
+		<hr>
+		<div class="row">
+			<p>
+			We would like to thank
+			<a href="https://tovacinni.github.io">Towaki Takikawa</a>,
+            <a href="https://joeylitalien.github.io">Joey Litalien</a>,
+            <a href="https://kangxue.org/">Kangxue Yin</a>,
+            <a href="https://scholar.google.de/citations?user=rFd-DiAAAAAJ">Karsten Kreis</a>,
+            <a href="https://research.nvidia.com/person/charles-loop">Charles Loop</a>,
+            <a href="http://www.cim.mcgill.ca/~derek/">Derek Nowrouzezahrai</a>,
+            <a href="https://www.cs.toronto.edu/~jacobson/">Alec Jacobson</a>,
+            <a href="https://casual-effects.com/">Morgan McGuire</a> and
+            <a href="https://www.cs.toronto.edu/~fidler/">Sanja Fidler</a>
+			for licensing the code of the paper <a href="https://nv-tlabs.github.io/nglod/">Neural Geometric Level of Detail:
+				Real-time Rendering with Implicit 3D Surfaces</a> and project page under the <a href=https://opensource.org/licenses/MIT>MIT License</a>. This website is based on that page.
+			<br/>
+			<br/>
+			<em>We also thank the <a href="https://graphics.stanford.edu">Stanford Computer Graphics Laboratory</a> for the Bunny, Dragon, Armadillo, Happy Buddha, and Lucy models, acquired through the <a href="http://graphics.stanford.edu/data/3Dscanrep/">Stanford 3D scan repository</a>.
+			</p>
+		</div>
+	</section>
+</div>
+</body>
+
+</html>
