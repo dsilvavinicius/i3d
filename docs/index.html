@@ -344,24 +344,23 @@ figure {
 		</p>
 	</section>
 
-	<!-- @TiagoNovello
 	<section id="overview"/>
 		<h2>Overview</h2>
 		<hr>
 		<p>
-			The key idea behind <b>MIP-plicits</b> is to explore the iterative nature of the <b>Sphere Tracing</b>, and the fact that it outputs 3D points in each iteration. Those points are defined in the underlying space of the <b>SDF</b> of a <b>Neural Implicit</b>, but also in the space of any slightly different <b>SDF</b> of another <b>Neural Implicit</b> trained on the same data (i.e. with different capacity). We can use those 3D points to transit between the underlying spaces of two <b>SDFs</b>, given that the zero level-set of the finer <b>Neural Implicit</b> is in the neighborhood of the zero level-set of the coarser <b>Neural Implicit</b>. We call this the <b>LOD condition</b>. It can also be used to map the normals between the <b>Neural Implicits</b>, which we call <b>Neural Implicit Normal Mapping</b>. Differently from <b>classic normal mapping</b>, this approach is volumetric. Thus, it does not need parametrizations, neither does need to deal with distortions from projection. The <b>LOD condition</b> can be used with both 3D and 4D (3D plus time) <b>Neural Implicits</b>.
-		</p>
+			
+  			The main contribution of our work is a global geometric representation in the continuous setting using neural networks as implicit functions. Besides its compact representation that captures geometrical details, this model is robust for shape analysis and efficient for computation since we have its derivatives in closed form.
 
-		<figure style="width: 100%; float: center">
-			<img class="screenshot-lg" src="assets/lod_condition.png">
-		</figure>
+			Specifically, we propose a loss functional that allows the exploration of tools from continuous differential geometry during the training of the neural implicit function. This provides high fidelity when reconstructing geometric features of the surface.
 
-		<p class="caption_justify">
-			Suppose we want to find the intersection of a ray with the zero level-set of a finer Neural Implicit Surface S<sub>j + 1</sub> using the intersection with a coarser Neural Implicit Surface S<sub>j</sub> as acceleration. To ensure that the ray does not miss any meaninful intersection, it suffices to intersect with the zero level-set of the neighborhood of S<sub>j</sub> that contains S<sub>j + 1</sub>. This is the <b>LOD condition</b>.<br/>
+			During the training of the neural implicit function, we use the discrete differential geometry of the dataset (triangle mesh) to sample important regions. This provides a robust and fast training without losing geometrical details.
+
+			Defining the appropriate depth/width of the neural implicit function to represent a given surface remains an open problem. However, if the network has more capacity than is necessary, we propose an optimization of its parameters using SVD. This reduces the number of parameters allowing for efficient inference. When the network cannot represent a given surface, we increase the dimension of its hidden domains.
+
+			To visualize neural implicit surfaces in real-time, we present an implementation of the (neural) sphere tracing in GPU. We also adopt the above network optimization for efficient memory usage during the sphere tracing.
 		</p>
 	</section>
-	-->
-
+	
 	<section id="results">
 		<h2>Results</h2>
 		<hr>
