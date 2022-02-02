@@ -2,6 +2,7 @@
 '''
 
 import torch
+import json
 import utils
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.autonotebook import tqdm
@@ -9,12 +10,13 @@ import time
 import numpy as np
 import os
 import shutil
+import modules
 
 import sdf_meshing
 
 
 def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_checkpoint, model_dir, loss_fn,
-          summary_fn, val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None):
+          summary_fn, device="cpu", val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None):
 
     optim = torch.optim.Adam(lr=lr, params=model.parameters())
 
@@ -30,6 +32,18 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
             shutil.rmtree(model_dir)
 
     os.makedirs(model_dir)
+
+    params = {
+        "batch_size": train_dataloader.dataset.batch_size,
+        "lr": lr,
+        "num_epochs": epochs,
+        "model_type": model.typ,
+        "w0": model.w0,
+        "point_cloud_path": train_dataloader.dataset.input_path,
+    }
+
+    with open(os.path.join(model_dir, "params.json"), "w+") as fout:
+        json.dump(params, fout, sort_keys=True, indent=4)
 
     summaries_dir = os.path.join(model_dir, 'summaries')
     utils.cond_mkdir(summaries_dir)
@@ -62,8 +76,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         _, _, d = v.size()
                         gt[k] = v.reshape(1, -1, d)
 
-                model_input = {key: value.cuda() for key, value in model_input.items()}
-                gt = {key: value.cuda() for key, value in gt.items()}
+                model_input = {key: value.to(device) for key, value in model_input.items()}
+                gt = {key: value.to(device) for key, value in gt.items()}
 
                 if double_precision:
                     model_input = {key: value.double() for key, value in model_input.items()}
@@ -119,7 +133,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                 pbar.update(1)
 
                 if not total_steps % steps_til_summary:
-                    tqdm.write("Epoch %d, Total loss %0.6f, iteration time %0.6f" % (epoch, train_loss, time.time() - start_time))
+                    # tqdm.write("Epoch %d, Total loss %0.6f, iteration time %0.6f" % (epoch, train_loss, time.time() - start_time))
+                    # print("", flush=True)
 
                     if val_dataloader is not None:
                         print("Running validation set...")
@@ -135,6 +150,9 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         model.train()
 
                 total_steps += 1
+
+            tqdm.write("Epoch %d, Total loss %0.6f, iteration time %0.6f" % (epoch, train_loss, time.time() - start_time))
+            print("", flush=True)
 
             #creating a mesh with curvatures using marching cubes
             # if epoch == 80:

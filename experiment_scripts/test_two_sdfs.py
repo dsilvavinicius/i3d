@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import modules, utils
+import two_sdf_meshing
 import sdf_meshing
 import configargparse
 import diff_operators
@@ -35,7 +36,27 @@ opt = p.parse_args()
 in_features = 3
 
 
-class SDFDecoder(torch.nn.Module):
+class SDFDecoder1(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Define the model.
+        self.model = modules.SingleBVPNet(
+            typ="sine",
+            final_layer_factor=1,
+            in_features=3,
+            hidden_features = 64,
+            num_hidden_layers=1,
+            w0=30
+        )
+        self.model.load_state_dict(torch.load('./logs/armadillo_b10000_w0-30_rede-1x64/checkpoints/model_final.pth'))
+        self.model.cuda()
+
+    def forward(self, coords):
+        model_in = {'coords': coords}
+        return self.model(model_in)#['model_out']
+
+
+class SDFDecoder2(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # Define the model.
@@ -55,9 +76,12 @@ class SDFDecoder(torch.nn.Module):
         return self.model(model_in)#['model_out']
 
 
-sdf_decoder = SDFDecoder()
+sdf_decoder2 = SDFDecoder2()
+sdf_decoder1 = SDFDecoder1()
+#sdf_decoder = implicit_functions.torus()
+#sdf_decoder = implicit_functions.double_torus()
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 utils.cond_mkdir(root_path)
 
-sdf_meshing.create_mesh_with_curvatures(sdf_decoder, os.path.join(root_path, 'test'), N=opt.resolution)
+two_sdf_meshing.create_mesh(sdf_decoder1, sdf_decoder2 , os.path.join(root_path, 'test'), N=opt.resolution)

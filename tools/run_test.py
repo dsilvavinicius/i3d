@@ -31,6 +31,9 @@ def main():
         "--resolution", "-r", type=int, default=256,
         help="Marching cubes resolution"
     )
+    parser.add_argument('--w0', "-w0", type=int, default=30,
+               help='Multiplicative factor for the frequencies')
+
     args = parser.parse_args()
 
     output_dir = os.path.join(args.base_dir, "reconstructions")
@@ -41,11 +44,15 @@ def main():
 
     params = dict()
 
+
+    script_meshing = "test_two_sdfs"
+
     checkpoint_dir = os.path.join(args.base_dir, "checkpoints")
 
     for c in args.checkpoints:
+
         experiment_name = args.base_dir.split("/")[-1] + f"_checkpoint-{c}"
-        default_args = f"python experiment_scripts/test_sdf.py --experiment_name={experiment_name}"
+        default_args = f"python experiment_scripts/{script_meshing}.py --experiment_name={experiment_name} --w0={args.w0}"
 
         model_name = ""
         if c == "final":
@@ -55,7 +62,7 @@ def main():
         else:
             model_name = f"model_epoch_{c:0>4}.pth"
 
-        checkpoint_path = os.path.join(checkpoint_dir, model_name)
+        checkpoint_path = checkpoint_dir + "/" + model_name
         checkpoint_args = f"{default_args} --checkpoint_path={checkpoint_path}"
 
         params[c] = dict()
@@ -70,7 +77,7 @@ def main():
             try:
                 subprocess.run(lex_args, check=True)
             except subprocess.CalledProcessError:
-                print(f"[WARN] Error when calling test_sdf.py with args: \"{lex_args}\"")
+                print(f"[WARN] Error when calling {script_meshing}.py with args: \"{lex_args}\"")
                 resolution_divisor *= 2
                 continue
             else:
@@ -80,6 +87,8 @@ def main():
             os.path.join("logs", experiment_name, "test.ply"),
             os.path.join(output_dir, f"{c}.ply")
         )
+
+        shutil.rmtree(os.path.join("logs", experiment_name))
 
         with open(os.path.join(args.base_dir, "reconstruction_params.json"), "w+") as fout:
             json.dump(params, fout, sort_keys=True, indent=4)

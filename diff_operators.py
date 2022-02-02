@@ -34,7 +34,7 @@ def mean_curvature(y, x):
     grad_norm = torch.norm(grad, dim=-1)
     unit_grad = grad.squeeze(-1)/grad_norm.unsqueeze(-1)
 
-    Km = -0.5*divergence(unit_grad, x)
+    Km = 0.5*divergence(unit_grad, x)
     return Km
 
 def principal_curvature(y, x, grad, hess):
@@ -87,7 +87,7 @@ def principal_directions(grad, hess):
     T2 =  torch.cat((T2 , T2z), -1)
 
     #computing the umbilical points
-    umbilical = torch.where(torch.abs(U)+torch.abs(V)+torch.abs(W)<1e6, -1, 0)
+    umbilical = torch.where(torch.abs(U)+torch.abs(V)+torch.abs(W)<1e-6, -1, 0)
     T1 = torch.cat((T1,umbilical), -1)
     T2 = torch.cat((T2,umbilical), -1)
 
@@ -122,8 +122,8 @@ def principal_curvature_region_detection(y,x):
     min_curvature, max_curvature = principal_curvature(y, x, grad, hess)
 
     #Harris detector formula
-    #return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
-    return min_curvature*max_curvature - 0.5*(min_curvature+max_curvature)**2
+    return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
+    #return min_curvature*max_curvature - 0.5*(min_curvature+max_curvature)**2
 
 def umbilical_indicator(y,x):
     grad = gradient(y, x)
