@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import logging
 from mesh_to_sdf.surface_point_cloud import SurfacePointCloud
 from mesh_to_sdf import (get_surface_point_cloud, scale_to_unit_cube,
                          scale_to_unit_sphere)
@@ -73,8 +74,9 @@ class PointCloud(Dataset):
     mesh_path: str
         Path to the base mesh.
 
-    samples_on_surface: int
-        Number of surface samples to fetch (i.e. {X | f(X) = 0}).
+    samples_on_surface: int, optional
+        Number of surface samples to fetch (i.e. {X | f(X) = 0}). Default value
+        is None, meaning that all vertices will be used.
 
     scaling: str or None, optional
         The scaling to apply to the mesh. Possible values are: None
@@ -126,13 +128,12 @@ class PointCloud(Dataset):
     & Wetzstein, G. (2020). Implicit Neural Representations with Periodic
     Activation Functions. ArXiv. Retrieved from http://arxiv.org/abs/2006.09661
     """
-    def __init__(self, mesh_path, samples_on_surface, scaling=None,
+    def __init__(self, mesh_path, samples_on_surface=None, scaling=None,
                  off_surface_sdf=None, off_surface_normals=None,
                  random_surf_samples=False, no_sampler=False, batch_size=0,
                  silent=False):
         super().__init__()
 
-        self.samples_on_surface = samples_on_surface
         self.off_surface_sdf = off_surface_sdf
         self.no_sampler = no_sampler
         self.batch_size = batch_size
@@ -155,6 +156,13 @@ class PointCloud(Dataset):
                 mesh = scale_to_unit_sphere(mesh)
             else:
                 raise ValueError("Invalid scaling option.")
+
+        self.samples_on_surface = len(mesh.vertices)
+        if samples_on_surface is None:
+            print("Using *all* vertices as samples.")
+        if samples_on_surface is not None:
+            print(f"Using {samples_on_surface} vertices as samples.")
+            self.samples_on_surface = samples_on_surface
 
         self.mesh = mesh
         if not silent:
@@ -227,15 +235,12 @@ class PointCloud(Dataset):
             # off_surface_samples[:, -1] = self.off_surface_sdf
             # off_surface_samples[:, 3:6] = self.off_surface_normals
 
-
         # if self.off_surface_sdf is not None:
         #     off_surface_samples[:, -1] = self.off_surface_sdf
         # if self.off_surface_normals is not None:
         #     off_surface_samples[:, 3:6] = self.off_surface_normals
 
         samples = torch.cat((on_surface_samples, off_surface_samples), dim=0)
-        # print("SAMPLES SIZE = ", samples.size())
-        # print("SAMPLES = ", samples[:5, :], samples[-5:, :])
 
         # Unsqueezing the SDF since it returns a shape [1] tensor and we need a
         # [1, 1] shaped tensor.
