@@ -8,7 +8,6 @@ and a set of checkpoints.
 
 import argparse
 import json
-import logging
 import os
 import torch
 from meshing import create_mesh
@@ -16,7 +15,9 @@ from model import SIREN
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run marching cubes using a trained model.")
+    parser = argparse.ArgumentParser(
+        description="Run marching cubes using a trained model."
+    )
     parser.add_argument(
         "experiment_path",
         help="Path to the JSON experiment description file"
@@ -24,6 +25,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoints", "-c", nargs="+", default=["final"],
         help="Checkpoints to use when reconstructing the model."
+    )
+    parser.add_argument(
+        "--resolution", "-r", default=0, type=int,
+        help="Resolution to use on marching cubes. Overrides the one in the experiments file."
     )
 
     args = parser.parse_args()
@@ -33,6 +38,10 @@ if __name__ == "__main__":
     base_path = os.path.join(params["checkpoint_path"], params["experiment_name"])
     model_path = os.path.join(base_path, "models")
     dest_path = os.path.join(base_path, "reconstructions")
+    reconstruction_opts = params.get("reconstruction", {})
+    resolution = reconstruction_opts.get("resolution", 128)
+    if args.resolution:
+        resolution = args.resolution
 
     model = SIREN(
         n_in_features=3,
@@ -42,11 +51,11 @@ if __name__ == "__main__":
     )
 
     for c in args.checkpoints:
-        logging.info(f"Marching cubes running for checkpoint \"{c}\"")
+        print(f"Marching cubes running for checkpoint \"{c}\"")
 
         checkpoint_file = os.path.join(model_path, f"model_{c}.pth")
         if not os.path.exists(checkpoint_file):
-            logging.warning(f"Checkpoint file model_{c}.pth does not exist. Skipping")
+            print(f"Checkpoint file model_{c}.pth does not exist. Skipping")
             continue
 
         model.load_state_dict(
@@ -55,7 +64,7 @@ if __name__ == "__main__":
         create_mesh(
             model,
             os.path.join(dest_path, f"{c}.ply"),
-            N=params["reconstruction"]["resolution"]
+            N=resolution
         )
 
-    logging.info("Done")
+    print("Done")
