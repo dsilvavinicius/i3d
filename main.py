@@ -21,18 +21,14 @@ from util import create_output_paths, load_experiment_parameters
 def train_model(dataset, model, device, config, silent=False):
     BATCH_SIZE = config["batch_size"]
     EPOCHS = config["epochs"]
-    EPOCHS_TIL_CHECKPOINT = 0
-    if "epochs_to_checkpoint" in config and config["epochs_to_checkpoint"] > 0:
-        EPOCHS_TIL_CHECKPOINT = config["epochs_to_checkpoint"]
 
-    EPOCHS_TIL_RECONSTRUCTION = 0
-    if "epochs_to_reconstruct" in config and config["epochs_to_reconstruct"] > 0:
-        EPOCHS_TIL_RECONSTRUCTION = config["epochs_to_reconstruct"]
+    EPOCHS_TIL_CHECKPOINT = config.get("epochs_to_checkpoint", 0)
+    EPOCHS_TIL_RECONSTRUCTION = config.get("epochs_to_reconstruct", 0)
 
     log_path = config["log_path"]
     loss_fn = config["loss_fn"]
     optim = config["optimizer"]
-    sampler = config["sampler"] if "sampler" in config else None
+    sampler = config.get("sampler", None)
     if sampler is not None:
         train_loader = DataLoader(
             dataset,
@@ -71,15 +67,11 @@ def train_model(dataset, model, device, config, silent=False):
             inputs = {k: v.to(device) for k, v in input_data.items()}
             gt = {k: v.to(device) for k, v in gt_data.items()}
 
-            # print("INPUTS SIZE = ", inputs["coords"].size())
-            # print("GT SIZE = ", [(k, v.size()) for k, v in gt.items()])
-
             # zero the parameter gradients
             optim.zero_grad()
 
             # forward + backward + optimize
             outputs = model(inputs["coords"])
-            # print("OUTPUTS SIZE = ", [(k, v.size()) for k, v in outputs.items()])
             loss = loss_fn(outputs, gt)
 
             train_loss = torch.zeros((1, 1), device=device)
@@ -110,7 +102,8 @@ def train_model(dataset, model, device, config, silent=False):
             print(f"Epoch: {epoch} - Loss: {epoch_loss}")
 
         # saving the model at checkpoints
-        if epoch and EPOCHS_TIL_CHECKPOINT and not epoch % EPOCHS_TIL_CHECKPOINT:
+        if epoch and EPOCHS_TIL_CHECKPOINT and not \
+           epoch % EPOCHS_TIL_CHECKPOINT:
             if not silent:
                 print(f"Saving model for epoch {epoch}")
             torch.save(
@@ -120,14 +113,28 @@ def train_model(dataset, model, device, config, silent=False):
         else:
             torch.save(
                 model.state_dict(),
-                os.path.join(log_path, "models", f"model_current.pth")
+                os.path.join(log_path, "models", "model_current.pth")
             )
+
+        if epoch and EPOCHS_TIL_RECONSTRUCTION and not \
+           epoch % EPOCHS_TIL_RECONSTRUCTION:
+            if not silent:
+                print(f"Reconstructing mesh for epoch {epoch}")
+            create_mesh(
+                model,
+                os.path.join(log_path, "reconstructions", f"{epoch}.ply"),
+                N=config["mc_resolution"],
+                device=device
+            )
+            model.train()
 
     return losses
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(usage="python main.py path_to_experiments.json")
+    p = argparse.ArgumentParser(
+        usage="python main.py path_to_experiments.json"
+    )
 
     p.add_argument(
         "experiment_path",
