@@ -136,7 +136,6 @@ class PointCloud(Dataset):
 
         self.off_surface_sdf = off_surface_sdf
         self.no_sampler = no_sampler
-        self.batch_size = batch_size
 
         if off_surface_normals is None:
             self.off_surface_normals = None
@@ -158,11 +157,16 @@ class PointCloud(Dataset):
                 raise ValueError("Invalid scaling option.")
 
         self.samples_on_surface = len(mesh.vertices)
-        if samples_on_surface is None:
+        if not samples_on_surface:
             print("Using *all* vertices as samples.")
-        if samples_on_surface is not None:
+        else:
             print(f"Using {samples_on_surface} vertices as samples.")
             self.samples_on_surface = samples_on_surface
+
+        self.batch_size = batch_size
+        if not batch_size:
+            self.batch_size = 2 * self.samples_on_surface
+            print(f"Fetching {self.batch_size} points per iteration.")
 
         self.mesh = mesh
         if not silent:
@@ -183,7 +187,7 @@ class PointCloud(Dataset):
 
         self.surface_samples = _sample_on_surface(
             mesh,
-            samples_on_surface,
+            self.samples_on_surface,
             sample_vertices=True
         )
 
