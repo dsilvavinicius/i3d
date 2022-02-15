@@ -113,24 +113,45 @@ def sdf_sitzmann(X, gt):
     }
 
 
-def true_sdf(model_output, gt):
-    '''Uses true SDF value off surface.
-    x: batch of input coordinates
-    y: usually the output of the trial_soln function
-    '''
+def true_sdf(X, gt):
+    """Uses true SDF value for off-surface points.
+
+    Parameters
+    ----------
+    X: dict[str=>torch.Tensor]
+        Model output with the following keys: 'model_in' and 'model_out'
+        with the model input and SDF values respectively.
+
+    gt: dict[str=>torch.Tensor]
+        Ground-truth data with the following keys: 'sdf' and 'normals', with
+        the actual SDF values and the input data normals, respectively.
+
+    Returns
+    -------
+    loss: dict[str=>torch.Tensor]
+        The calculated loss values for each constraint.
+    """
     gt_sdf = gt['sdf']
     gt_normals = gt['normals']
 
-    coords = model_output['model_in']
-    pred_sdf = model_output['model_out']
+    coords = X['model_in']
+    pred_sdf = X['model_out']
 
     gradient = diff_operators.gradient(pred_sdf, coords)
-    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+
+    # Initial-boundary constraints
+    sdf_on_surf = sdf_constraint_on_surf(gt_sdf, pred_sdf)
+    sdf_off_surf = sdf_constraint_off_surf(gt_sdf, pred_sdf)
+    normal_constraint = vector_aligment_on_surf(gt_sdf, gt_normals, gradient)
+
+    # PDE constraints
+    grad_constraint = eikonal_constraint(gradient).unsqueeze(-1)
+
     return {
-       'sdf_on_surf': sdf_constraint_on_surf(gt_sdf, pred_sdf).mean() * 3e3,
-       'sdf_off_surf': sdf_constraint_off_surf(gt_sdf, pred_sdf).mean() * 2e2,
-       'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2 ,#* 1e1,
-       'grad_constraint': eikonal_constraint(gradient).mean() * 5e1#1e1
+       'sdf_on_surf': sdf_on_surf.mean() * 3e3,
+       'sdf_off_surf': sdf_off_surf.mean() * 2e2,
+       'normal_constraint': normal_constraint.mean() * 1e2, #* 1e1,
+       'grad_constraint': grad_constraint.mean() * 5e1 #1e1
     }
 
 
