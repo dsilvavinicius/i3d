@@ -6,23 +6,39 @@ import diff_operators
 
 
 def sdf_constraint_on_surf(gt_sdf, pred_sdf):
-    return torch.where(gt_sdf == 0, pred_sdf ** 2, torch.zeros_like(pred_sdf))
+    return torch.where(
+        gt_sdf == 0,
+        pred_sdf ** 2,
+        torch.zeros_like(pred_sdf)
+    )
 
 
 def sdf_constraint_off_surf(gt_sdf, pred_sdf):
-    return torch.where(gt_sdf != 0, (gt_sdf - pred_sdf) ** 2, torch.zeros_like(pred_sdf))
+    return torch.where(
+        gt_sdf != 0,
+        (gt_sdf - pred_sdf) ** 2,
+        torch.zeros_like(pred_sdf)
+    )
 
 
 def vector_aligment_on_surf(gt_sdf, gt_vectors, pred_vectors):
-    return torch.where(gt_sdf == 0, 1 - F.cosine_similarity(pred_vectors, gt_vectors, dim=-1)[..., None], torch.zeros_like(gt_sdf))
+    return torch.where(
+        gt_sdf == 0,
+        1 - F.cosine_similarity(pred_vectors, gt_vectors, dim=-1)[..., None],
+        torch.zeros_like(gt_sdf)
+    )
 
 
 def direction_aligment_on_surf(gt_sdf, gt_dirs, pred_dirs):
-    return torch.where(gt_sdf == 0, 1 - (F.cosine_similarity(pred_dirs, gt_dirs, dim=-1)[..., None])**2, torch.zeros_like(gt_sdf))
+    return torch.where(
+        gt_sdf == 0,
+        1 - (F.cosine_similarity(pred_dirs, gt_dirs, dim=-1)[..., None])**2,
+        torch.zeros_like(gt_sdf)
+    )
 
 
 def eikonal_constraint(gradient):
-    return ((gradient.norm(dim=-1) - 1.) ** 2).unsqueeze(-1)
+    return (gradient.norm(dim=-1) - 1.) ** 2
 
 
 def off_surface_without_sdf_constraint(gt_sdf, pred_sdf, radius=1e2):
@@ -76,24 +92,18 @@ def sdf_sitzmann(X, gt):
     gt_sdf = gt["sdf"]
     gt_normals = gt["normals"]
 
-    # print("GT_SDF SIZE = ", gt_sdf.size())
-    # print("GT_NORMALS SIZE = ", gt_normals.size())
-
     coords = X["model_in"]
     pred_sdf = X["model_out"]
-
-    # print("coords SIZE = ", coords.size())
-    # print("pred_sdf SIZE = ", pred_sdf.size())
 
     grad = diff_operators.gradient(pred_sdf, coords)
 
     # Initial-boundary constraints
     sdf_constraint = sdf_constraint_on_surf(gt_sdf, pred_sdf)
     inter_constraint = off_surface_without_sdf_constraint(gt_sdf, pred_sdf)
-    normal_constraint = on_surface_normal_constraint(gt_sdf, gt_normals, grad)
+    normal_constraint = vector_aligment_on_surf(gt_sdf, gt_normals, grad)
 
     # PDE constraints
-    grad_constraint = eikonal_constraint(grad)
+    grad_constraint = eikonal_constraint(grad).unsqueeze(-1)
 
     return {
         "sdf_constraint": sdf_constraint.mean() * 3e3,
