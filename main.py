@@ -14,7 +14,6 @@ from dataset import PointCloud
 from loss_functions import sdf_sitzmann, true_sdf_curvature, true_sdf
 from meshing import create_mesh
 from model import SIREN
-# from samplers import SitzmannSampler
 from util import create_output_paths, load_experiment_parameters
 
 
@@ -167,27 +166,25 @@ if __name__ == "__main__":
     if sampling_config.get("sampler"):
         no_sampler = False
 
-    off_surface_sdf = parameter_dict.get("off_surface_sdf")
-    off_surface_normals = parameter_dict.get("off_surface_normals")
-    if off_surface_normals is not None:
-        off_surface_normals = np.array(off_surface_normals)
-
-    scaling = parameter_dict.get("scaling")
-
+    off_surface_sdf = parameter_dict.get("off_surface_sdf", None)
+    off_surface_normals = parameter_dict.get("off_surface_normals", None)
+    scaling = parameter_dict.get("scaling", None)
     dataset = PointCloud(
         os.path.join("data", parameter_dict["dataset"]),
-        sampling_config["samples_on_surface"],
+        samples_on_surface=sampling_config["samples_on_surface"],
         scaling=scaling,
         off_surface_sdf=off_surface_sdf,
         off_surface_normals=off_surface_normals,
         random_surf_samples=sampling_config["random_surf_samples"],
         no_sampler=no_sampler,
         batch_size=parameter_dict["batch_size"],
-        silent=args.silent
+        uniform_sampling=sampling_config.get("uniform_sampling", True),
+        curvature_fracs=sampling_config.get("curvature_iteration_fractions", None),
+        low_med_percentiles=sampling_config.get("percentile_thresholds", None)
     )
 
     sampler = None
-    # sampler_opt = sampling_config.get("sampler")
+    # sampler_opt = sampling_config.get("sampler", None)
     # if sampler_opt is not None and sampler_opt == "sitzmann":
     #     sampler = SitzmannSampler(
     #         dataset,
