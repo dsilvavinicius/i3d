@@ -8,7 +8,7 @@
         "sampler": false
     },
     "dataset": "armadillo.ply",
-    "batch_size": 0,
+    "batch_size": 20000,
     "checkpoint_path": "logs",
     "experiment_name": "armadillo_sdf",
     "epochs_to_checkpoint": 10,

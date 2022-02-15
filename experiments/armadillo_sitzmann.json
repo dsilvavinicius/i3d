@@ -8,8 +8,9 @@
         "sampler": false
     },
     "dataset": "armadillo.ply",
-    "batch_size": 0,
+    "batch_size": 20000,
     "off_surface_sdf": -1,
+    "off_surface_normals": [-1, -1, -1],
     "checkpoint_path": "logs",
     "experiment_name": "armadillo_sitzmann",
     "epochs_to_checkpoint": 10,
