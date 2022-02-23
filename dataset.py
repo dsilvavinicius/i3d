@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import math
 from mesh_to_sdf.surface_point_cloud import SurfacePointCloud
 from mesh_to_sdf import (get_surface_point_cloud, scale_to_unit_cube,
                          scale_to_unit_sphere)
@@ -63,6 +64,38 @@ def _sample_domain(point_cloud: SurfacePointCloud,
         domain_normals,
         domain_sdf[:, np.newaxis]
     )).astype(np.float32))
+
+
+def lowMedHighCurvSegmentation(surface_samples, on_surface_count, abs_curvatures, bin_edges, proportions):
+    on_surface_sampled = 0
+    low_curvature_pts = surface_samples[(abs_curvatures >= bin_edges[0]) & (abs_curvatures < bin_edges[1]), ...]
+    low_curvature_idx = np.random.choice(
+        range(low_curvature_pts.size(0)),
+        size=int(math.floor(proportions[0] * on_surface_count)),
+        replace=False
+    )
+    on_surface_sampled = len(low_curvature_idx)
+
+    med_curvature_pts = surface_samples[(abs_curvatures >= bin_edges[1]) & (abs_curvatures < bin_edges[2]), ...]
+    med_curvature_idx = np.random.choice(
+        range(med_curvature_pts.size(0)),
+        size=int(math.ceil(proportions[1] * on_surface_count)),
+        replace=False
+    )
+    on_surface_sampled += len(med_curvature_idx)
+
+    high_curvature_pts = surface_samples[(abs_curvatures >= bin_edges[2]) & (abs_curvatures <= bin_edges[3]), ...]
+    high_curvature_idx = np.random.choice(
+        range(high_curvature_pts.size(0)),
+        size=on_surface_count - on_surface_sampled,
+        replace=False
+    )
+
+    return torch.cat((
+        low_curvature_pts[low_curvature_idx, ...],
+        med_curvature_pts[med_curvature_idx, ...],
+        high_curvature_pts[high_curvature_idx, ...]
+    ), dim=0)
 
 
 class PointCloud(Dataset):
@@ -230,6 +263,146 @@ class PointCloud(Dataset):
             "coords": samples[:, :3].float(),
         }, {
             "normals": samples[:, 3:6].float(),
+            "sdf": samples[:, -1].unsqueeze(-1).float()
+        }
+
+
+class PointCloudCachedCurvature(PointCloud):
+    """Point cloud that uses pre-calculated curvatures.
+
+    Parameters
+    ----------
+    uniform_sampling: boolean, optional
+        Indicates whether the surface samples will be fetched uniformely at
+        random at each iteration. Default value is True, meaning that the
+        samples will be fetched at random. If set to False, the samples will
+        be fetched by using the curvature proportions indicated by the
+        `curvature_fracs` parameter using the `low_med_percentiles` parameter
+        as thresholds for low-med and med-high curvature values.
+
+    curvature_fracs: tuple, optional
+        Fractions of points to return per curvature band (low, medium and high)
+        at each iteration. The sum of these values must be 1. Default value is
+        (0.6, 0.2, 0.2), meaning that, at each iteration, 60% of the points
+        will be of low curvature, 20% of medium curvature and 20% of high
+        curvature. This parameter is used only if `uniform_sampling` is False.
+
+    low_med_percentiles: tuple, optional
+        Percentiles of curvature values to use as thresholds for low and medium
+        curvatures. Default value is (70, 95), meaning that all points below
+        curvature percentile 70 will be considered as low curvature, all points
+        with curvature values between percentiles 70 and 95 are considered
+        medium curvature and all points with value above percentile 95 are
+        classified as high curvature points.
+    """
+    def __init__(self, mesh_path, samples_on_surface=None, scaling=None,
+                 off_surface_sdf=None, off_surface_normals=None,
+                 no_sampler=False, batch_size=0,
+                 uniform_sampling=True, curvature_fracs=(0.6, 0.2, 0.2),
+                 low_med_percentiles=(70, 95)):
+
+        super().__init__(mesh_path, samples_on_surface, scaling,
+                         off_surface_sdf, off_surface_normals, no_sampler,
+                         batch_size)
+
+        self.uniform_sampling = uniform_sampling
+        self.curvature_fracs = curvature_fracs
+        self.low_med_percentiles = low_med_percentiles
+
+        print("Using curvature biased sampling.")
+        pcpath = mesh_path[:-3] + "xyz"
+        print(f"Loading point-cloud with curvature data at {pcpath}.")
+        point_cloud = np.genfromtxt(pcpath)
+        self.pc_data = point_cloud[~np.isnan(point_cloud[:, 4])]
+        print("Finished loading point-cloud data")
+
+        if scaling == "bbox":
+            self.pc_data[:, :3] = self.pc_data[:, :3] - \
+                self.mesh.bounding_box.centroid
+            self.pc_data[:, :3] *= 2 / np.max(self.mesh.bounding_box.extents)
+
+        #exporting ply (point, curvatures, normal, principal direction):  x, y, z, k1, k2, nx, ny, nz, kx, ky, kz       
+        min_curvatures = self.pc_data[:, 4]  # the signal was changed
+        max_curvatures = self.pc_data[:, 3]
+
+        self.gauss_curvatures = min_curvatures * max_curvatures
+        self.abs_curvatures = np.abs(min_curvatures) + np.abs(max_curvatures)
+
+        l1, l2 = np.percentile(self.abs_curvatures, [p * 100 for p in low_med_percentiles])
+        self.bin_edges = [
+            np.min(self.abs_curvatures),
+            l1,
+            l2,
+            np.max(self.abs_curvatures)
+        ]
+
+        self.surface_samples = torch.from_numpy(np.hstack((
+            self.pc_data[:, :3],    # vertices
+            self.pc_data[:, 5:8],   # normals
+            min_curvatures[:, np.newaxis],
+            max_curvatures[:, np.newaxis],
+            self.pc_data[:, 8:11],  # max_dirs
+            np.zeros((self.pc_data.shape[0], 1))
+        )).astype(np.float32))
+
+    def __getitem__(self, idx):
+        n_points = self.batch_size
+        if self.batch_size <= 0:
+            n_points = self.surface_samples.shape[0]
+
+        on_surface_count = n_points
+        off_surface_count = n_points
+
+        # On surface points here
+        if self.uniform_sampling:
+            on_surface_idx = np.random.choice(
+                range(self.surface_samples.shape[0]),
+                size=on_surface_count,
+                replace=False
+            )
+            on_surface_samples = self.surface_samples[on_surface_idx, ...]
+        else:
+            on_surface_samples = lowMedHighCurvSegmentation(
+                self.surface_samples, on_surface_count, self.abs_curvatures,
+                self.bin_edges, self.curvature_fracs
+            )
+
+        # Off-surface points here
+        off_surface_points = np.random.uniform(-1, 1, size=(off_surface_count, 3))
+        if self.off_surface_sdf is None:
+            off_surface_sdf, off_surface_normals = self.point_cloud.get_sdf(
+                off_surface_points,
+                use_depth_buffer=False,
+                return_gradients=True
+            )
+        else:
+            off_surface_normals = np.full(
+                shape=(off_surface_count, 3),
+                fill_value=self.off_surface_sdf
+            )
+            off_surface_sdf = np.full(
+                shape=(off_surface_count, 1),
+                fill_value=self.off_surface_sdf
+            ).squeeze()
+
+        off_surface_samples = torch.from_numpy(np.hstack((
+            off_surface_points,
+            off_surface_normals,
+            np.zeros((off_surface_count, 1)),      # min_curv
+            np.zeros((off_surface_count, 1)),      # max_curv
+            np.ones((off_surface_count, 3)) * -1,  # max_dirs
+            off_surface_sdf[:, np.newaxis]
+        )).astype(np.float32))
+
+        samples = torch.cat((on_surface_samples, off_surface_samples), dim=0)
+
+        return {
+            "coords": samples[:, :3].float()
+        }, {
+            "normals": samples[:, 3:6].float(),
+            "min_curvatures": samples[:, 6].unsqueeze(-1).float(),
+            "max_curvatures": samples[:, 7].unsqueeze(-1).float(),
+            "max_principal_directions": samples[:, 8:11].float(),
             "sdf": samples[:, -1].unsqueeze(-1).float()
         }
 
