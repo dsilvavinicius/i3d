@@ -98,36 +98,13 @@ class PointCloud(Dataset):
         When this option is True, we assume that no sampler will be provided to
         the DataLoader, meaning that our `__getitem__` will return a batch of
         points instead of a single point, mimicking the behavior of Sitzmann
-        et al. [1]. Default is False, meaning that an external sampler will be
+        et al. [1]. Default is True, meaning that no external sampler will be
         used.
 
     batch_size: integer, optional
         Only used when `no_sampler` is `True`. Used for fetching `batch_size`
         at every call of `__getitem__`. If set to 0 (default), fetches all
         on-surface points at every call.
-
-    uniform_sampling: boolean, optional
-        Indicates whether the surface samples will be fetched uniformely at
-        random at each iteration. Default value is True, meaning that the
-        samples will be fetched at random. If set to False, the samples will
-        be fetched by using the curvature proportions indicated by the
-        `curvature_fracs` parameter using the `low_med_percentiles` parameter
-        as thresholds for low-med and med-high curvature values.
-
-    curvature_fracs: tuple, optional
-        Fractions of points to return per curvature band (low, medium and high)
-        at each iteration. The sum of these values must be 1. Default value is
-        (0.6, 0.2, 0.2), meaning that, at each iteration, 60% of the points
-        will be of low curvature, 20% of medium curvature and 20% of high
-        curvature. This parameter is used only if `uniform_sampling` is False.
-
-    low_med_percentiles: tuple, optional
-        Percentiles of curvature values to use as thresholds for low and medium
-        curvatures. Default value is (70, 95), meaning that all points below
-        curvature percentile 70 will be considered as low curvature, all points
-        with curvature values between percentiles 70 and 95 are considered
-        medium curvature and all points with value above percentile 95 are
-        classified as high curvature points.
 
     See Also
     --------
@@ -142,13 +119,9 @@ class PointCloud(Dataset):
     """
     def __init__(self, mesh_path, samples_on_surface=None, scaling=None,
                  off_surface_sdf=None, off_surface_normals=None,
-                 no_sampler=False, batch_size=0,
-                 uniform_sampling=True, curvature_fracs=(0.6, 0.2, 0.2),
-                 low_med_percentiles=(70, 95)):
+                 no_sampler=True, batch_size=0):
         super().__init__()
 
-        self.curvature_fracs = curvature_fracs
-        self.low_med_percentiles = low_med_percentiles
         self.off_surface_sdf = off_surface_sdf
         self.no_sampler = no_sampler
 
@@ -162,17 +135,7 @@ class PointCloud(Dataset):
             )
 
         print(f"Loading mesh \"{mesh_path}\".")
-
         mesh = trimesh.load(mesh_path)
-        print("Mesh scaling:", scaling)
-
-        if scaling is not None and scaling:
-            if scaling == "bbox":
-                mesh = scale_to_unit_cube(mesh)
-            elif scaling == "sphere":
-                mesh = scale_to_unit_sphere(mesh)
-            else:
-                raise ValueError("Invalid scaling option.")
 
         self.samples_on_surface = len(mesh.vertices)
         if not samples_on_surface:
@@ -185,6 +148,13 @@ class PointCloud(Dataset):
         if not batch_size:
             self.batch_size = self.samples_on_surface
         print(f"Fetching {self.batch_size} on-surface points per iteration.")
+
+        print("Mesh scaling:", scaling)
+        if scaling is not None and scaling:
+            if scaling == "bbox":
+                mesh = scale_to_unit_cube(mesh)
+            else:
+                raise ValueError("Invalid scaling option.")
 
         self.mesh = mesh
         print("Creating point-cloud and acceleration structures.")
