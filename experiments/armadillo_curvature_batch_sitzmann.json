@@ -1,0 +1,34 @@
+{
+    "description": "SIREN Learning of the Armadillo mesh using SDF values and non-uniform sampling.",
+    "num_epochs": 1000,
+    "sampling_opts": {
+        "samples_on_surface": 0,
+        "samples_off_surface": 0,
+        "random_surf_samples": true,
+        "sampler": false,
+        "uniform_sampling": false,
+        "curvature_iteration_fractions": [0.2, 0.6, 0.2],
+        "percentile_thresholds": [0.6, 0.95]
+    },
+    "off_surface_sdf": -1,
+    "use_cached_curvatures": true,
+    "dataset": "armadillo.ply",
+    "batch_size": 20000,
+    "checkpoint_path": "logs",
+    "experiment_name": "armadillo_curvature_batch_sitzmann",
+    "epochs_to_checkpoint": 10,
+    "epochs_to_reconstruction": 100,
+    "loss": "sitzmann",
+    "optimizer": {
+        "type": "adam",
+        "lr": 1e-4
+    },
+    "reconstruction": {
+        "resolution": 256,
+        "output_file": "final"
+    },
+    "network": {
+        "hidden_layer_nodes": [256, 256, 256],
+        "w0": 30
+    }
+}
