@@ -3,14 +3,13 @@
 
 import argparse
 import json
-import logging
 import os
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from dataset import PointCloud
+from dataset import PointCloud, PointCloudCachedCurvature
 from loss_functions import sdf_sitzmann, true_sdf_curvature, true_sdf
 from meshing import create_mesh
 from model import SIREN
@@ -169,19 +168,30 @@ if __name__ == "__main__":
     off_surface_sdf = parameter_dict.get("off_surface_sdf", None)
     off_surface_normals = parameter_dict.get("off_surface_normals", None)
     scaling = parameter_dict.get("scaling", None)
-    dataset = PointCloud(
-        os.path.join("data", parameter_dict["dataset"]),
-        samples_on_surface=sampling_config["samples_on_surface"],
-        scaling=scaling,
-        off_surface_sdf=off_surface_sdf,
-        off_surface_normals=off_surface_normals,
-        random_surf_samples=sampling_config["random_surf_samples"],
-        no_sampler=no_sampler,
-        batch_size=parameter_dict["batch_size"],
-        uniform_sampling=sampling_config.get("uniform_sampling", True),
-        curvature_fracs=sampling_config.get("curvature_iteration_fractions", None),
-        low_med_percentiles=sampling_config.get("percentile_thresholds", None)
-    )
+    use_cached_curvatures = parameter_dict.get("use_cached_curvatures", False)
+    if not use_cached_curvatures:
+        dataset = PointCloud(
+            os.path.join("data", parameter_dict["dataset"]),
+            samples_on_surface=sampling_config["samples_on_surface"],
+            scaling=scaling,
+            off_surface_sdf=off_surface_sdf,
+            off_surface_normals=off_surface_normals,
+            no_sampler=no_sampler,
+            batch_size=parameter_dict["batch_size"],
+        )
+    else:
+        dataset = PointCloudCachedCurvature(
+            os.path.join("data", parameter_dict["dataset"]),
+            samples_on_surface=sampling_config["samples_on_surface"],
+            scaling=scaling,
+            off_surface_sdf=off_surface_sdf,
+            off_surface_normals=off_surface_normals,
+            no_sampler=no_sampler,
+            batch_size=parameter_dict["batch_size"],
+            uniform_sampling=sampling_config.get("uniform_sampling", True),
+            curvature_fracs=sampling_config.get("curvature_iteration_fractions", None),
+            low_med_percentiles=sampling_config.get("percentile_thresholds", None)
+        )
 
     sampler = None
     # sampler_opt = sampling_config.get("sampler", None)
@@ -216,7 +226,7 @@ if __name__ == "__main__":
     elif loss_opt == "sitzmann":
         pass  # same as default
     else:
-        logging.warning("Unknown loss option. Using default \"sitzmann\".")
+        print("Unknown loss option. Using default \"sitzmann\".")
 
     config_dict = {
         "epochs": parameter_dict["num_epochs"],
