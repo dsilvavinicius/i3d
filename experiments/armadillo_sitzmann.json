@@ -1,6 +1,6 @@
 {
-    "description": "SIREN Learning of the Armadillo with SDF=-1 for off-surface points .",
-    "num_epochs": 1000,
+    "description": "SIREN Learning of the Armadillo with SDF=-1 for off-surface points.",
+    "num_epochs": 100,
     "sampling_opts": {
         "samples_on_surface": 0,
         "samples_off_surface": 0,
@@ -14,7 +14,7 @@
     "checkpoint_path": "logs",
     "experiment_name": "armadillo_sitzmann",
     "epochs_to_checkpoint": 10,
-    "epochs_to_reconstruction": 100,
+    "epochs_to_reconstruction": 10,
     "loss": "sitzmann",
     "optimizer": {
         "type": "adam",
