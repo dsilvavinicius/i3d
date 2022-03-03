@@ -98,15 +98,16 @@ def sdf_sitzmann(X, gt):
     grad = diff_operators.gradient(pred_sdf, coords)
 
     # Initial-boundary constraints
-    sdf_constraint = sdf_constraint_on_surf(gt_sdf, pred_sdf)
-    inter_constraint = off_surface_without_sdf_constraint(gt_sdf, pred_sdf)
-    normal_constraint = vector_aligment_on_surf(gt_sdf, gt_normals, grad)
+    sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
+    inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
+    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(grad, gt_normals, dim=-1)[..., None],
+                                    torch.zeros_like(grad[..., :1]))
 
     # PDE constraints
-    grad_constraint = eikonal_constraint(grad).unsqueeze(-1)
+    grad_constraint = torch.abs(grad.norm(dim=-1) - 1)
 
     return {
-        "sdf_constraint": sdf_constraint.mean() * 3e3,
+        "sdf_constraint": torch.abs(sdf_constraint).mean() * 3e3,
         "inter_constraint": inter_constraint.mean() * 1e2,
         "normal_constraint": normal_constraint.mean() * 1e2,
         "grad_constraint": grad_constraint.mean() * 5e1,
