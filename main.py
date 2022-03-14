@@ -4,6 +4,8 @@
 import argparse
 import json
 import os
+import random
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import BatchSampler, DataLoader
@@ -175,6 +177,11 @@ if __name__ == "__main__":
     parameter_dict = load_experiment_parameters(args.experiment_path)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    seed = 123
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
     sampling_config = parameter_dict["sampling_opts"]
 
