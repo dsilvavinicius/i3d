@@ -234,7 +234,8 @@ if __name__ == "__main__":
         n_in_features,
         n_out_features=1,
         hidden_layer_config=parameter_dict["network"]["hidden_layer_nodes"],
-        w0=parameter_dict["network"]["w0"]
+        w0=parameter_dict["network"]["w0"],
+        ww=parameter_dict["network"]["ww"]
     )
     if not args.silent:
         print(model)

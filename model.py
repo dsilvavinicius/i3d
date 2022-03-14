@@ -79,7 +79,7 @@ class SIREN(nn.Module):
         for i in range(1, len(hidden_layer_config)):
             net.append(nn.Sequential(
                 nn.Linear(hidden_layer_config[i-1], hidden_layer_config[i]),
-                SineLayer(self.w0)
+                SineLayer(self.ww)
             ))
 
         net.append(nn.Sequential(
@@ -88,7 +88,7 @@ class SIREN(nn.Module):
 
         self.net = nn.Sequential(*net)
         self.net[0].apply(first_layer_sine_init)
-        self.net[1:].apply(lambda module: sine_init(module, self.w0))
+        self.net[1:].apply(lambda module: sine_init(module, self.ww))
 
     def forward(self, x):
         """Forward pass of the model.
