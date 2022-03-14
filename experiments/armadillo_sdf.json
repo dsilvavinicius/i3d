@@ -8,10 +8,10 @@
         "sampler": false
     },
     "dataset": "armadillo_stanford.ply",
-    "batch_size": 50000,
+    "batch_size": 20000,
     "scaling": "bbox",
     "checkpoint_path": "logs",
-    "experiment_name": "armadillo_sdf_stanford_w0_60_b50000",
+    "experiment_name": "armadillo_sdf",
     "epochs_to_checkpoint": 10,
     "epochs_to_reconstruction": [1, 10, 100],
     "loss": "sdf",
