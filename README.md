@@ -46,10 +46,10 @@ We tested the build steps stated above on Ubuntu 20.04. The prerequisites and se
 
 ### Running on a headless server
 
-If you are training your model in a remote server with no graphical environment, you will probably end up with the following error: `pyglet.canvas.xlib.NoSuchDisplayException: Cannot connect to "None"`. This will happen during the sampling step when loading a mesh. Basically, this means that pyglet needs a graphical display, which does not exist. You can work around this error by prepending your python command with: `xvfb-run -s "-screen 0 1400x900x24"`, as in:
+If you are training your model in a remote server with no graphical environment, you will probably end up with the following error: `pyglet.canvas.xlib.NoSuchDisplayException: Cannot connect to "None"`. This will happen during the sampling step when loading a mesh. Basically, this means that pyglet needs a graphical display, which does not exist. You can work around this error by creating a virtual framebuffer, which can be done by prepending your python command with: `xvfb-run -s "-screen 0 1400x900x24"`, as in:
 
 ```{sh}
-xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.py
+xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.json
 ```
 
 ### End Result

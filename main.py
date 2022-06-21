@@ -237,12 +237,13 @@ if __name__ == "__main__":
     #         sampling_config["samples_off_surface"]
     #     )
 
+    network_params = parameter_dict["network"]
     model = SIREN(
         n_in_features,
         n_out_features=1,
-        hidden_layer_config=parameter_dict["network"]["hidden_layer_nodes"],
-        w0=parameter_dict["network"]["w0"],
-        ww=parameter_dict["network"]["ww"]
+        hidden_layer_config=network_params["hidden_layer_nodes"],
+        w0=network_params["w0"],
+        ww=network_params.get("ww", None)
     )
     if not args.silent:
         print(model)
