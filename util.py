@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from collections import OrderedDict
 import json
 import os
 import shutil
@@ -29,3 +30,44 @@ def load_experiment_parameters(parameters_path):
         logging.warning("File '{parameters_path}' not found.")
         return {}
     return parameter_dict
+
+
+def siren_v1_to_v2(model_in, check_equals=False):
+    """Converts the models trained using the old class to the new format.
+
+    Parameters
+    ----------
+    model_in: OrderedDict
+        Model trained by our old SIREN version (Sitzmann code).
+
+    check_equals: boolean, optional
+        Whether to check if the converted models weight match. By default this
+        is False.
+
+    Returns
+    -------
+    model_out: OrderedDict
+        The input model converted to a format recognizable by our version of
+        SIREN.
+
+    divergences: list[tuple[str, str]]
+        If `check_equals` is True, then this list contains the keys where the
+        original and converted model dictionaries are not equal. Else, this is
+        an empty list.
+
+    See Also
+    --------
+    `model.SIREN`
+    """
+    model_out = OrderedDict()
+    for k, v in model_in.items():
+        model_out[k[4:]] = v
+
+    divergences = []
+    if check_equals:
+        for k in model_in.keys():
+            test = model_in[k] == model_out[k[4:]]
+            if test.sum().item() != test.numel():
+                divergences.append((k, k[4:]))
+
+    return model_out, divergences
