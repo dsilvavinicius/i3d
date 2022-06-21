@@ -88,30 +88,30 @@ def train_model(dataset, model, device, config, silent=False):
             train_loss.backward()
             optim.step()
 
-            colors = torch.zeros_like(inputs["coords"], device="cpu", requires_grad=False)
-            squeezed_sdf = gt["sdf"].squeeze(-1)
-            colors[squeezed_sdf < 0, :] = torch.Tensor([255, 0, 0])
-            colors[squeezed_sdf == 0, :] = torch.Tensor([0, 255, 0])
-            colors[squeezed_sdf > 0, :] = torch.Tensor([0, 0, 255])
+            # colors = torch.zeros_like(inputs["coords"], device="cpu", requires_grad=False)
+            # squeezed_sdf = gt["sdf"].squeeze(-1)
+            # colors[squeezed_sdf < 0, :] = torch.Tensor([255, 0, 0])
+            # colors[squeezed_sdf == 0, :] = torch.Tensor([0, 255, 0])
+            # colors[squeezed_sdf > 0, :] = torch.Tensor([0, 0, 255])
 
-            outside_coords = inputs["coords"][squeezed_sdf >= 0, :].unsqueeze(0)
-            outside_colors = colors[squeezed_sdf >= 0, :].unsqueeze(0)
-            inside_coords = inputs["coords"][squeezed_sdf <= 0, :].unsqueeze(0)
-            inside_colors = colors[squeezed_sdf <= 0, :].unsqueeze(0)
+            # outside_coords = inputs["coords"][squeezed_sdf >= 0, :].unsqueeze(0)
+            # outside_colors = colors[squeezed_sdf >= 0, :].unsqueeze(0)
+            # inside_coords = inputs["coords"][squeezed_sdf <= 0, :].unsqueeze(0)
+            # inside_colors = colors[squeezed_sdf <= 0, :].unsqueeze(0)
 
-            writer.add_mesh(
-                "input_samples_outside",
-                outside_coords,
-                colors=outside_colors,
-                global_step=epoch
-            )
+            # writer.add_mesh(
+            #     "input_samples_outside",
+            #     outside_coords,
+            #     colors=outside_colors,
+            #     global_step=epoch
+            # )
 
-            writer.add_mesh(
-                "input_samples_inside",
-                inside_coords,
-                colors=inside_colors,
-                global_step=epoch
-            )
+            # writer.add_mesh(
+            #     "input_samples_inside",
+            #     inside_coords,
+            #     colors=inside_colors,
+            #     global_step=epoch
+            # )
 
             writer.add_scalar("train_loss", train_loss.item(), epoch)
 

@@ -1,0 +1,31 @@
+{
+    "description": "SIREN Learning of the Armadillo mesh using true SDF values and non-uniform sampling.",
+    "num_epochs": 10001,
+    "sampling_opts": {
+        "samples_on_surface": 0,
+        "samples_off_surface": 0,
+        "random_surf_samples": true,
+        "sampler": false
+    },
+    "dataset": "smpl_5.ply",
+    "batch_size": 20000,
+    "scaling": "",
+    "checkpoint_path": "logs",
+    "experiment_name": "smpl_5-2x128_w0-30",
+    "epochs_to_checkpoint": 1000,
+    "epochs_to_reconstruction": [100, 1000, 2000, 5000, 10000],
+    "loss": "sdf",
+    "optimizer": {
+        "type": "adam",
+        "lr": 1e-4
+    },
+    "reconstruction": {
+        "resolution": 256,
+        "output_file": "final"
+    },
+    "network": {
+        "hidden_layer_nodes": [128, 128, 128],
+        "w0": 30,
+        "ww": 30
+    }
+}
