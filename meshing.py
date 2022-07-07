@@ -9,23 +9,29 @@ import time
 import torch
 
 
-def create_mesh(
-    decoder,
-    filename="",
-    t=-1, # time=-1 means we are only in the space
-    N=256,
-    max_batch=64 ** 3,
-    offset=None,
-    scale=None,
-    device="cpu",
-    silent=False
-):
-    decoder.eval()
+def gen_mc_coordinate_grid(N, voxel_size, t=-1, device="cpu",
+                           voxel_origin=[-1, -1, -1]):
+    """Creates the coordinate grid for inference and marching cubes run.
 
-    # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not the middle
-    voxel_origin = [-1, -1, -1]
-    voxel_size = 2.0 / (N - 1)
+    Parameters
+    ----------
+    N: int
+        Number of elements in each dimension. Total grid size will be N ** 3
 
+    voxel_size: number
+        Size of each voxel
+
+    t: int, optional
+        Reconstruction time. Required for space-time models. Default value is
+        -1, meaning that time is not a model parameter
+
+    device: string, optional
+        Device to store tensors. Default is CPU
+
+    voxel_origin: list[number, number, number], optional
+        Origin coordinates of the volume. Must be the (bottom, left, down)
+        coordinates. Default is [-1, -1, -1]
+    """
     overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
 
     sdf_coord = 3
@@ -34,7 +40,8 @@ def create_mesh(
 
     # (x,y,z,sdf) if we are not considering time
     # (x,y,z,t,sdf) otherwise
-    samples = torch.zeros(N ** 3, sdf_coord + 1, device=device)
+    samples = torch.zeros(N ** 3, sdf_coord + 1, device=device,
+                          requires_grad=False)
 
     # transform first 3 columns
     # to be the x, y, z index
@@ -47,11 +54,35 @@ def create_mesh(
     samples[:, 0] = (samples[:, 0] * voxel_size) + voxel_origin[2]
     samples[:, 1] = (samples[:, 1] * voxel_size) + voxel_origin[1]
     samples[:, 2] = (samples[:, 2] * voxel_size) + voxel_origin[0]
-    samples.requires_grad = False
 
     #adding the time
     if(t != -1):
         samples[:, sdf_coord-1] = t
+
+    return samples
+
+
+def create_mesh(
+    decoder,
+    filename="",
+    t=-1, # time=-1 means we are only in the space
+    N=256,
+    max_batch=64 ** 3,
+    offset=None,
+    scale=None,
+    device="cpu",
+    silent=False
+):
+    decoder.eval()
+    # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not the middle
+    voxel_origin = [-1, -1, -1]
+    voxel_size = 2.0 / (N - 1)
+
+    samples = gen_mc_coordinate_grid(N, voxel_size, device=device)
+
+    sdf_coord = 3
+    if (t != -1):
+        sdf_coord = 4
 
     num_samples = N ** 3
     head = 0
