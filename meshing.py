@@ -9,7 +9,7 @@ import time
 import torch
 
 
-def gen_mc_coordinate_grid(N, voxel_size, t=-1, device="cpu",
+def gen_mc_coordinate_grid(N, voxel_size, t=None, device="cpu",
                            voxel_origin=[-1, -1, -1]):
     """Creates the coordinate grid for inference and marching cubes run.
 
@@ -23,7 +23,7 @@ def gen_mc_coordinate_grid(N, voxel_size, t=-1, device="cpu",
 
     t: int, optional
         Reconstruction time. Required for space-time models. Default value is
-        -1, meaning that time is not a model parameter
+        None, meaning that time is not a model parameter
 
     device: string, optional
         Device to store tensors. Default is CPU
@@ -35,7 +35,7 @@ def gen_mc_coordinate_grid(N, voxel_size, t=-1, device="cpu",
     overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
 
     sdf_coord = 3
-    if (t != -1):
+    if t is not None:
         sdf_coord = 4
 
     # (x,y,z,sdf) if we are not considering time
@@ -55,8 +55,8 @@ def gen_mc_coordinate_grid(N, voxel_size, t=-1, device="cpu",
     samples[:, 1] = (samples[:, 1] * voxel_size) + voxel_origin[1]
     samples[:, 2] = (samples[:, 2] * voxel_size) + voxel_origin[0]
 
-    #adding the time
-    if(t != -1):
+    # adding the time
+    if t is not None:
         samples[:, sdf_coord-1] = t
 
     return samples
@@ -74,11 +74,13 @@ def create_mesh(
     silent=False
 ):
     decoder.eval()
-    # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not the middle
+    # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not
+    # the middle
     voxel_origin = [-1, -1, -1]
     voxel_size = 2.0 / (N - 1)
 
-    samples = gen_mc_coordinate_grid(N, voxel_size, device=device)
+    samples = gen_mc_coordinate_grid(N, voxel_size, t=None if t == -1 else t,
+                                     device=device)
 
     sdf_coord = 3
     if (t != -1):
