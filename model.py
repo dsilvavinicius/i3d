@@ -30,6 +30,9 @@ class SineLayer(nn.Module):
     def forward(self, x):
         return torch.sin(self.w0 * x)
 
+    def __repr__(self):
+        return f"SineLayer(w0={self.w0})"
+
 
 class SIREN(nn.Module):
     """SIREN Module
