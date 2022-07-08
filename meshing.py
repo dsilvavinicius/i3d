@@ -1,7 +1,6 @@
 '''From the DeepSDF repository https://github.com/facebookresearch/DeepSDF
 '''
 
-import logging
 import numpy as np
 import plyfile
 from skimage.measure import marching_cubes
@@ -9,8 +8,9 @@ import time
 import torch
 
 
-def gen_mc_coordinate_grid(N, voxel_size, t=None, device="cpu",
-                           voxel_origin=[-1, -1, -1]):
+def gen_mc_coordinate_grid(N: int, voxel_size: float, t: float = None,
+                           device: str = "cpu",
+                           voxel_origin: list = [-1, -1, -1]) -> torch.Tensor:
     """Creates the coordinate grid for inference and marching cubes run.
 
     Parameters
@@ -21,7 +21,7 @@ def gen_mc_coordinate_grid(N, voxel_size, t=None, device="cpu",
     voxel_size: number
         Size of each voxel
 
-    t: int, optional
+    t: float, optional
         Reconstruction time. Required for space-time models. Default value is
         None, meaning that time is not a model parameter
 
@@ -31,6 +31,13 @@ def gen_mc_coordinate_grid(N, voxel_size, t=None, device="cpu",
     voxel_origin: list[number, number, number], optional
         Origin coordinates of the volume. Must be the (bottom, left, down)
         coordinates. Default is [-1, -1, -1]
+
+    Returns
+    -------
+    samples: torch.Tensor
+        A (N**3, 3) shaped tensor with samples' coordinates. If t is not None,
+        then the return tensor is has 4 columns instead of 3, with the last
+        column equalling `t`.
     """
     overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
 
@@ -146,7 +153,10 @@ def convert_sdf_samples_to_ply(
 
     This function adapted from: https://github.com/RobotLocomotion/spartan
     """
-    numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
+    if isinstance(pytorch_3d_sdf_tensor, torch.Tensor):
+        numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
+    else:
+        numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor
 
     verts, faces, normals, values = np.zeros((0, 3)), np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0)
 
