@@ -129,19 +129,36 @@ if __name__ == "__main__":
         print("# parameters =", torch.nn.utils.parameters_to_vector(model.parameters()).numel())
         optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
 
-        training_pts_t = torch.from_numpy(training_pts).float()
-
-        gt = {
-            "sdf": torch.from_numpy(training_sdf).float().unsqueeze(1),
-            "normals": torch.from_numpy(training_normals).float(),
-        }
-
         # Training the model
         model.train()
         for e in range(EPOCHS):
+            # Defining points on the surface of a sphere
+            sphere_pts = torch.from_numpy(gen_points_on_sphere(
+                round(args.training_points * args.fraction_on_surface),
+                r=RADIUS
+            ))
+
+            # Adding random domain samples to the points.
+            domain_pts = torch.rand(
+                round(args.training_points * (1 - args.fraction_on_surface)),
+                3
+            ) * 2 - 1
+
+            training_pts = torch.row_stack((sphere_pts, domain_pts)).float()
+
+            # Shuffling and calculating the SDF.
+            # np.random.shuffle(training_pts)
+            training_normals = torch.Tensor([grad_sdf_sphere(p) for p in training_pts.numpy()])
+            training_sdf = torch.Tensor([sdf_sphere(p, r=RADIUS) for p in training_pts.numpy()])
+
+            gt = {
+                "sdf": training_sdf.float().unsqueeze(1),
+                "normals": training_normals.float(),
+            }
+
             optim.zero_grad()
 
-            y = model(training_pts_t)
+            y = model(training_pts)
             loss = loss_fn(y, gt)
 
             training_loss = torch.zeros((1, 1))
