@@ -8,6 +8,7 @@ import os.path as osp
 import numpy as np
 from scipy.interpolate import RBFInterpolator
 import torch
+from torch.nn.utils import parameters_to_vector
 from loss_functions import true_sdf as loss_fn
 from meshing import (convert_sdf_samples_to_ply, gen_mc_coordinate_grid,
                      save_ply)
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 
         model = SIREN(3, 1, **netconfig)
         print(model)
-        print("# parameters =", torch.nn.utils.parameters_to_vector(model.parameters()).numel())
+        print("# parameters =", parameters_to_vector(model.parameters()).numel())
         optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
 
         # Training the model
