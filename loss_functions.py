@@ -267,18 +267,22 @@ def true_sdf_curvature(model_output, gt):
     gradient = diff_operators.gradient(pred_sdf, coords)
 
    # mean curvature
-    pred_curvature = diff_operators.mean_curvature(pred_sdf, coords)
-    curvature_diff = torch.tanh(100*pred_curvature) - torch.tanh(100*gt_curvature)
+    pred_curvature = diff_operators.divergence(gradient, coords)#(pred_sdf, coords)
+    curv_constraint = torch.where(
+        gt_sdf == 0,
+        (pred_curvature - gt_curvature) ** 2,
+        torch.zeros_like(pred_curvature)
+    )
 
     #consider the curature constraint only on the surface
-    curv_constraint = torch.where(gt_sdf == 0, curvature_diff ** 2, torch.zeros_like(pred_curvature))
+    #curv_constraint = torch.where(gt_sdf == 0, curvature_diff ** 2, torch.zeros_like(pred_curvature))
     #remove problematic curvatures and planar points
-    curv_constraint = torch.where(torch.abs(gt_curvature) < 5000, curv_constraint, torch.zeros_like(pred_curvature))
-    curv_constraint = torch.where(torch.abs(gt_curvature) > 10, curv_constraint, torch.zeros_like(pred_curvature))
+    #curv_constraint = torch.where(torch.abs(gt_curvature) < 5000, curv_constraint, torch.zeros_like(pred_curvature))
+    #curv_constraint = torch.where(torch.abs(gt_curvature) > 10, curv_constraint, torch.zeros_like(pred_curvature))
 
     # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
     return {'sdf_on_surf': sdf_constraint_on_surf(gt_sdf, pred_sdf).mean() * 3e3,
             'sdf_off_surf': sdf_constraint_off_surf(gt_sdf, pred_sdf).mean() * 2e2,
             'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2 ,#* 1e1,
-            'grad_constraint': eikonal_constraint(gradient).mean() * 5e1,
-            'curv_constraint': curv_constraint.mean() * 5 }
+            'grad_constraint': eikonal_constraint(gradient).unsqueeze(-1).mean() * 5e1,
+            'curv_constraint': curv_constraint.mean() * 1e-1 }

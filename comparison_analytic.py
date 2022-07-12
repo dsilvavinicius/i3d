@@ -6,12 +6,14 @@ import argparse
 import json
 import time
 import os.path as osp
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import RBFInterpolator
 import torch
+import torch.nn.functional as F
 from torch.nn.utils import parameters_to_vector
 import diff_operators
-from loss_functions import true_sdf as loss_fn
+from loss_functions import true_sdf, true_sdf_curvature
 from meshing import (convert_sdf_samples_to_ply, gen_mc_coordinate_grid,
                      save_ply)
 from model import SIREN
@@ -80,13 +82,13 @@ model_map = {
 
 netconfig_map = {
     "sphere": {
-        "hidden_layer_config": [32, 32, 32],
-        "w0": 5,
+        "hidden_layer_config": [80, 80],
+        "w0": 20,
         "ww": None,
     },
     "torus": {
-        "hidden_layer_config": [64, 64, 64],
-        "w0": 10,
+        "hidden_layer_config": [80, 80],
+        "w0": 20,
         "ww": None,
     },
     "default": {
@@ -96,17 +98,20 @@ netconfig_map = {
     }
 }
 
+EPOCHS = 500
 
-def grad_sdf(p: torch.Tensor, model: torch.nn.Module) -> torch.Tensor:
+
+def grad_sdf(p: torch.Tensor, model: torch.nn.Module,
+             no_curv: bool = False) -> (torch.Tensor, torch.Tensor):
     """Evaluates the gradient of F (`model`) at points `p`."""
     sdf = model(p)
     coords = sdf['model_in']
     values = sdf['model_out'].unsqueeze(0)
     gradient = diff_operators.gradient(values, coords)
-    return gradient
+    return gradient, diff_operators.divergence(gradient, coords) if not no_curv else None
 
 
-def gen_points_on_surf(n: int, model: torch.nn.Module) -> torch.Tensor:
+def gen_points_on_surf(n: int, model: torch.nn.Module) -> (torch.Tensor, torch.Tensor):
     """Generates `n` points on the surface of F, defined by `model`."""
     P = torch.rand(n, 3) * 2 - 1
     sdf = model(P)
@@ -159,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--i3d_config", default=None, type=str,
                         help="Path to the i3d experiment JSON file. If not"
                         " provided, a default configuration will be used.")
-    parser.add_argument("-m", "--methods", default=["rbf", "i3d"], nargs="*",
+    parser.add_argument("-m", "--methods", default=["rbf", "i3d", "i3dcurv"], nargs="*",
                         help="Models to test. Options are: rbf, i3d")
     parser.add_argument("-s", "--seed", default=271668, type=int,
                         help="RNG seed.")
@@ -185,8 +190,10 @@ if __name__ == "__main__":
     test_domain_pts = torch.rand(args.test_points, 3) * 2 - 1
     test_surf_pts, _ = gen_points_on_surf(args.test_points, mesh_model)
     test_pts = torch.row_stack((test_surf_pts, test_domain_pts))
+    test_normals, test_curvatures = grad_sdf(test_pts, mesh_model)
     with torch.no_grad():
         test_sdf = mesh_model(test_pts)["model_out"]
+        test_sdf[:test_domain_pts.shape[0]] = 0
 
     # Marching cubes inputs
     voxel_size = 2.0 / (args.mc_resolution - 1)
@@ -202,7 +209,7 @@ if __name__ == "__main__":
         ) * 2 - 1
         training_pts = torch.row_stack((surf_pts, domain_pts)).float()
 
-        training_normals = grad_sdf(training_pts, mesh_model)
+        training_normals, _ = grad_sdf(training_pts, mesh_model)
         with torch.no_grad():
             training_sdf = mesh_model(training_pts)["model_out"]
 
@@ -218,15 +225,21 @@ if __name__ == "__main__":
         # Inference on the test data.
         y_rbf = interp(test_pts.detach().numpy())
         errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
-        print(f"RBF Results: SABSE {errs.sum():.3} --- MABSE {errs.mean():.3}"
+        errs_on_surf = errs[:test_surf_pts.shape[0]]
+        errs_off_surf = errs[test_surf_pts.shape[0]:]
+        print(f"RBF Results: MABSE {errs.mean():.3}"
               f" -- MAXERR {errs.max().item():.3} --- Runtime {tot_time} s")
+        print(f"Errors on surface --- "
+            f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+        print(f"Errors off surface --- "
+            f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
 
         # Marching cubes
         samples_sdf = interp(samples[:, :3]).reshape([args.mc_resolution] * 3)
         verts, faces, _, _ = convert_sdf_samples_to_ply(
             samples_sdf, [-1, -1, -1], voxel_size, None, None
         )
-        save_ply(verts, faces, f"mc_rbf_{model_name}.ply")
+        save_ply(verts, faces, f"mc_rbf_{args.input}.ply")
 
     if "i3d" in args.methods:
         netconfig = netconfig_map.get(args.input, netconfig_map["default"])
@@ -238,13 +251,14 @@ if __name__ == "__main__":
                 EPOCHS = contents["num_epochs"]
 
         model = SIREN(3, 1, **netconfig)
-        # print(model)
-        # print("# parameters =", parameters_to_vector(model.parameters()).numel())
+        print(model)
+        print("# parameters =", parameters_to_vector(model.parameters()).numel())
         optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
 
         # Training the model
         model.train()
         start = time.time()
+        training_loss = {}
         for e in range(EPOCHS):
             # Adding random domain samples to the points.
             domain_pts = torch.rand(
@@ -256,7 +270,7 @@ if __name__ == "__main__":
                 mesh_model
             )
             training_pts = torch.row_stack((surf_pts, domain_pts)).float()
-            training_normals = grad_sdf(training_pts, mesh_model)
+            training_normals, _ = grad_sdf(training_pts, mesh_model, no_curv=True)
             with torch.no_grad():
                 training_sdf = mesh_model(training_pts)["model_out"]
 
@@ -268,19 +282,31 @@ if __name__ == "__main__":
             optim.zero_grad()
 
             y = model(training_pts)
-            loss = loss_fn(y, gt)
+            loss = true_sdf(y, gt)
 
-            training_loss = torch.zeros((1, 1))
-            for v in loss.values():
-                training_loss += v
+            running_loss = torch.zeros((1, 1))
+            for k, v in loss.items():
+                running_loss += v
+                if k not in training_loss:
+                    training_loss[k] = [v.item()]
+                else:
+                    training_loss[k].append(v.item())
 
-            # if not e % 10 and e > 0:
-            #     print(f"Epoch {e} --- Loss: {training_loss.item()}")
+            if not e % 10 and e > 0:
+                print(f"Epoch {e} --- Loss: {running_loss.item()}")
 
-            training_loss.backward()
+            running_loss.backward()
             optim.step()
 
         tot_time = time.time() - start
+
+        fig, ax = plt.subplots(1)
+        for k in training_loss:
+            ax.plot(list(range(EPOCHS)), training_loss[k], label=k)
+
+        fig.legend()
+        plt.savefig(f"loss_i3d_{args.input}.png")
+        #plt.show()
 
         # Testing the model
         # Inference on the test data.
@@ -288,18 +314,142 @@ if __name__ == "__main__":
             test_pts = torch.from_numpy(test_pts).float()
 
         if isinstance(test_pts, np.ndarray):
-            test_sdf = torch.from_numpy(test_sdf).float().unsqueeze(1)
+            test_sdf = torch.from_numpy(test_sdf).float()
 
         model.eval()
+        n_i3d, _ = grad_sdf(test_surf_pts, model)
         with torch.no_grad():
-            y_i3d = model(test_pts)["model_out"]
+            y_i3d = model(test_pts)["model_out"].squeeze()
             errs = torch.abs(test_sdf - y_i3d)
-            print(f"i3d Results: SABSE {errs.sum():.3} ---"
+            errs_on_surf = errs[:test_surf_pts.shape[0]]
+            errs_off_surf = errs[test_surf_pts.shape[0]:]
+
+            errs_normals = 1 - F.cosine_similarity(
+                test_normals[:test_surf_pts.shape[0], ...],
+                n_i3d,
+                dim=-1
+            )
+
+            print(f"i3d Results:"
                   f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}"
                   f" --- Runtime {tot_time:} s")
+            print(f"Errors on surface --- "
+                f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+            print(f"Errors off surface --- "
+                f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+            print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                f" --- MAX {errs_normals.max().item():.3}")
 
+            # Marching cubes
             samples_sdf = model(samples[:, :3])["model_out"].reshape([args.mc_resolution] * 3)
             verts, faces, _, _ = convert_sdf_samples_to_ply(
                 samples_sdf, [-1, -1, -1], voxel_size, None, None
             )
-            save_ply(verts, faces, f"mc_i3d_{model_name}.ply")
+            save_ply(verts, faces, f"mc_i3d_{args.input}.ply")
+
+    if "i3dcurv" in args.methods:
+        netconfig = netconfig_map.get(args.input, netconfig_map["default"])
+        if args.i3d_config is not None and \
+           osp.exists(path := osp.expanduser(args.i3d_config)):
+            with open(path, "r") as jin:
+                contents = json.load(jin)
+                netconfig.update(contents["network"])
+                EPOCHS = contents["num_epochs"]
+
+        model = SIREN(3, 1, **netconfig)
+        print(model)
+        print("# parameters =", parameters_to_vector(model.parameters()).numel())
+        optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
+
+        # Training the model
+        model.train()
+        start = time.time()
+        training_loss = {}
+        for e in range(EPOCHS):
+            # Adding random domain samples to the points.
+            domain_pts = torch.rand(
+                round(args.training_points * (1 - args.fraction_on_surface)),
+                3
+            ) * 2 - 1
+            surf_pts, _ = gen_points_on_surf(
+                round(args.training_points * args.fraction_on_surface),
+                mesh_model
+            )
+            training_pts = torch.row_stack((surf_pts, domain_pts)).float()
+            training_normals, tranining_curvatures = grad_sdf(training_pts, mesh_model)
+            with torch.no_grad():
+                training_sdf = mesh_model(training_pts)["model_out"]
+
+            gt = {
+                "sdf": training_sdf.float().unsqueeze(1),
+                "normals": training_normals.float(),
+                "curvature": tranining_curvatures.float(),
+            }
+
+            optim.zero_grad()
+
+            y = model(training_pts)
+            loss = true_sdf_curvature(y, gt)
+
+            running_loss = torch.zeros((1, 1))
+            for k, v in loss.items():
+                running_loss += v
+                if k not in training_loss:
+                    training_loss[k] = [v.item()]
+                else:
+                    training_loss[k].append(v.item())
+
+            if not e % 10 and e > 0:
+                print(f"Epoch {e} --- Loss: {running_loss.item()}")
+
+            running_loss.backward()
+            optim.step()
+
+        tot_time = time.time() - start
+
+        fig, ax = plt.subplots(1)
+        for k in training_loss:
+            ax.plot(list(range(EPOCHS)), training_loss[k], label=k)
+
+        fig.legend()
+        plt.savefig(f"loss_i3dcurv_{args.input}.png")
+
+        # Testing the model
+        # Inference on the test data.
+        if isinstance(test_pts, np.ndarray):
+            test_pts = torch.from_numpy(test_pts).float()
+
+        if isinstance(test_pts, np.ndarray):
+            test_sdf = torch.from_numpy(test_sdf).float()
+
+        model.eval()
+        n_i3d, curv_i3d = grad_sdf(test_surf_pts, model)
+        with torch.no_grad():
+            y_i3d = model(test_pts)["model_out"].squeeze()
+            errs = torch.abs(test_sdf - y_i3d)
+            errs_on_surf = errs[:test_surf_pts.shape[0]]
+            errs_off_surf = errs[test_surf_pts.shape[0]:]
+
+            # 1 - F.cosine_similarity(pred_vectors, gt_vectors, dim=-1)[..., None]
+            errs_normals = 1 - F.cosine_similarity(
+                test_normals[:test_surf_pts.shape[0], ...],
+                n_i3d,
+                dim=-1
+            )
+
+            print(f"i3dcurv Results:"
+                  f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}"
+                  f" --- Runtime {tot_time:} s")
+            print(f"Errors on surface --- "
+                f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+            print(f"Errors off surface --- "
+                f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+            print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                f" --- MAX {errs_normals.max().item():.3}")
+
+            # Marching cubes
+            samples_sdf = model(samples[:, :3])["model_out"].reshape([args.mc_resolution] * 3)
+            verts, faces, _, _ = convert_sdf_samples_to_ply(
+                samples_sdf, [-1, -1, -1], voxel_size, None, None
+            )
+            save_ply(verts, faces, f"mc_i3dcurv_{args.input}.ply")
