@@ -140,6 +140,8 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--num_runs", default=1, type=int,
                         help="Number of times to run the tests. Useful for"
                         " statistics.")
+    parser.add_argument("--save_weights", action="store_true", default=False,
+                        help="Indicates if we should save the weights.")
 
     args = parser.parse_args()
 
@@ -374,6 +376,8 @@ if __name__ == "__main__":
             sep=";",
             index=False
         )
+        if args.save_weights:
+            torch.save(model.state_dict(), f"weights_siren_{args.input}.pth")
 
     if "i3d" in args.methods:
         netconfig = netconfig_map.get(args.input, netconfig_map["default"])
@@ -515,6 +519,8 @@ if __name__ == "__main__":
             sep=";",
             index=False
         )
+        if args.save_weights:
+            torch.save(model.state_dict(), f"weights_i3d_{args.input}.pth")
 
     if "i3dcurv" in args.methods:
         netconfig = netconfig_map.get(args.input, netconfig_map["default"])
@@ -657,3 +663,5 @@ if __name__ == "__main__":
             sep=";",
             index=False
         )
+        if args.save_weights:
+            torch.save(model.state_dict(), f"weights_i3dcurv_{args.input}.pth")
