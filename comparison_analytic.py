@@ -6,7 +6,6 @@ import argparse
 import json
 import time
 import os.path as osp
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import RBFInterpolator
@@ -59,22 +58,6 @@ class sdf_torus(torch.nn.Module):
         return {"model_in": p, "model_out": dist}
 
 
-class sdf_octahedron(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, p):
-        p.requires_grad = True
-
-        #f(x,y,z)=x**4 + y**4 + z**4 + 6*x**2*y**2 + 6*y**2*z**2 + 6*z**2*x**2 − 1
-        dist = p[..., 0] ** 4 + p[..., 1] ** 4 + p[..., 2] ** 4 \
-            + 6 * p[..., 0] ** 2 * p[..., 1] ** 2 \
-            + 6 * p[..., 1] ** 2 * p[..., 2] ** 2 \
-            + 6 * p[..., 2] ** 2 * p[..., 0] ** 2 - 1
-
-        return {"model_in": p, "model_out": dist.unsqueeze(-1)}
-
-
 model_map = {
     "sphere": sdf_sphere(0.9),
     "torus": sdf_torus(0.6, 0.5),
@@ -124,27 +107,6 @@ def gen_points_on_surf(n: int, model: torch.nn.Module) -> (torch.Tensor, torch.T
     return proj, P
 
 
-# def viz_mesh(mesh_type_path: str):
-#     """Visualizes the mesh points. For debugging purposes mostly."""
-#     if mesh_type_path is model_map:
-#         model = model_map[mesh_type_path]
-#     else:
-#         if not osp.exists(osp.expanduser(mesh_type_path)):
-#             raise FileNotFoundError
-#         return 1
-
-#     proj, P = gen_points_on_surf(1500, model)
-#     cloud = pyrender.Mesh.from_points(proj.detach(), colors=torch.zeros_like(P))
-#     domain_colors = torch.Tensor([255, 0, 0] * P.shape[0]).reshape(-1, 3)
-#     cloud_domain = pyrender.Mesh.from_points(P.detach(), colors=domain_colors)
-#     light = pyrender.PointLight(intensity=500)
-#     scene = pyrender.Scene()
-#     scene.add(light)
-#     scene.add(cloud)
-#     scene.add(cloud_domain)
-#     viewer = pyrender.Viewer(scene, point_size=3)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Comparison tests of i3d and other models. Only for"
@@ -156,16 +118,20 @@ if __name__ == "__main__":
     parser.add_argument("--test_points", default=5000, type=int,
                         help="Number of test points to use.")
     parser.add_argument("-i", "--input", default="sphere", type=str,
-                        help="Base mesh to use. May be sphere, torus, ...")
+                        help="Base mesh for training."
+                        " May be \"sphere\" and \"torus\"")
     parser.add_argument("-p", "--fraction_on_surface", default=0.5, type=float,
-                        help="Fraction of points to sample on surface of object "
-                        " (for training purposes only). The remaining points"
-                        " will be randomly sampled from the domain.")
+                        help="Fraction of points to sample on surface of"
+                        " object (for training purposes only). The remaining"
+                        " points will be randomly sampled from the domain.")
     parser.add_argument("-c", "--i3d_config", default=None, type=str,
                         help="Path to the i3d experiment JSON file. If not"
                         " provided, a default configuration will be used.")
-    parser.add_argument("-m", "--methods", default=["rbf", "i3d", "i3dcurv"], nargs="*",
-                        help="Models to test. Options are: rbf, i3d")
+    parser.add_argument("-m", "--methods",
+                        default=["rbf", "siren", "i3d", "i3dcurv"],
+                        nargs="*",
+                        help="Models to test. Options are: \"rbf\", \"siren\", "
+                        "\"i3d\", \"i3dcurv\"")
     parser.add_argument("-s", "--seed", default=271668, type=int,
                         help="RNG seed.")
     parser.add_argument("-r", "--mc_resolution", default=64, type=int,
@@ -262,8 +228,9 @@ if __name__ == "__main__":
             samples_sdf, [-1, -1, -1], voxel_size, None, None
         )
         save_ply(verts, faces, f"mc_rbf_{args.input}.ply")
-        pd.DataFrame.from_dict(training_stats).to_csv(f"stats_rbf_{args.input}.csv", sep=";",
-                                                      index=False)
+        pd.DataFrame.from_dict(training_stats).to_csv(
+            f"stats_rbf_{args.input}.csv", sep=";", index=False
+        )
 
     if "siren" in args.methods:
         netconfig = netconfig_map.get(args.input, netconfig_map["default"])
