@@ -3,6 +3,7 @@
 
 
 import time
+import matplotlib.pyplot as plt
 import open3d as o3d
 import open3d.core as o3c
 import numpy as np
@@ -102,7 +103,7 @@ def create_training_data(
         n_on_surf: int,
         on_surf_exceptions: list,
         n_off_surf: int,
-        domain_bounds: tuple[np.array, np.array],
+        domain_bounds,#: tuple[np.array, np.array],
         scene: o3d.t.geometry.RaycastingScene,
         no_sdf: bool = False
 ):
@@ -192,19 +193,20 @@ torch.backends.cudnn.benchmark = False
 N_TEST_POINTS = 5000  # Half on surface, half off it. Training points is defined as len(vertices) - TEST_POINTS
 BATCH_SIZE = 20000    # Half on surface, half off it.
 EPOCHS = 100          # Total steps = EPOCHS * len(vertices) / BATCH_SIZE
-METHODS = ["rbf", "siren", "i3d", "i3dcurv"]
+#METHODS = ["rbf", "siren", "i3d", "i3dcurv"]
+METHODS = ["i3d", "siren"]
 MESH_TYPE = "armadillo"
 
 mesh_map = {
-    "armadillo": o3d.data.ArmadilloMesh(),
-    "bunny": o3d.data.BunnyMesh(),
+    "armadillo": "D:/Users/tiago/projects/high_order_derivative_learning_for_graphics/data/armadillo.ply",
+    "bunny": "D:/Users/tiago/projects/high_order_derivative_learning_for_graphics/data/bunny.ply",
 }
 
 mesh_data = mesh_map.get(MESH_TYPE, None)
 if mesh_data is None:
     raise ValueError(f"Invalid mesh provided \"{MESH_TYPE}\".")
 
-mesh = o3d.io.read_triangle_mesh(mesh_data.path)
+mesh = o3d.io.read_triangle_mesh(mesh_data)
 mesh.compute_vertex_normals()
 mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
 print(mesh)
@@ -213,15 +215,15 @@ print(mesh)
 min_bound = mesh.vertex['positions'].min(0).numpy()
 max_bound = mesh.vertex['positions'].max(0).numpy()
 
-v = (mesh.vertex["positions"] - min_bound) / (max_bound - min_bound)
-v = 1.8 * v - 0.9
-mesh.vertex["positions"] = v
+#v = (mesh.vertex["positions"] - min_bound) / (max_bound - min_bound)
+#v = 1.8 * v - 0.9
+#mesh.vertex["positions"] = v
 
 min_bound = np.array([-1, -1, -1])
 max_bound = np.array([1, 1, 1])
 
 # Marching cubes inputs
-MC_RESOLUTION = 128
+MC_RESOLUTION = 256
 voxel_size = 2.0 / (MC_RESOLUTION - 1)
 samples = gen_mc_coordinate_grid(MC_RESOLUTION, voxel_size)
 
@@ -295,16 +297,20 @@ if "rbf" in METHODS:
 
 ################## SIREN
 if "siren" in METHODS:
+    np.random.seed(271668)
+    torch.manual_seed(271668)
+    torch.cuda.manual_seed(271668)
+
     N_TRAINING_POINTS = N - N_TEST_POINTS
-    N_STEPS = round(EPOCHS * ((N - N_TEST_POINTS) / BATCH_SIZE))
+    N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
     print(f"# of steps: {N_STEPS}")
 
     # Model training
     training_loss = {}
-    model = SIREN(3, 1, [128, 128, 128])
+    model = SIREN(3, 1, [256, 256, 256], w0=60)
     print(model)
     print("# parameters =", parameters_to_vector(model.parameters()).numel())
-    optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
+    optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
 
     # Start of the training loop
     for e in range(N_STEPS):
@@ -339,8 +345,15 @@ if "siren" in METHODS:
         running_loss.backward()
         optim.step()
 
-        if not e % 10 and e > 0:
+        if not e % 100 and e > 0:
             print(f"Epoch {e} --- Loss {running_loss.item()}")
+
+    fig, ax = plt.subplots(1)
+    for k in training_loss:
+        ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
+
+    fig.legend()
+    plt.savefig(f"loss_siren_{MESH_TYPE}.png")
 
     model.eval()
     n_siren, curv_siren = grad_sdf(test_surf_pts[..., :3], model)
@@ -373,16 +386,20 @@ if "siren" in METHODS:
 
 ################## I3D
 if "i3d" in METHODS:
+    np.random.seed(271668)
+    torch.manual_seed(271668)
+    torch.cuda.manual_seed(271668)
+
     N_TRAINING_POINTS = N - N_TEST_POINTS
-    N_STEPS = round(EPOCHS * ((N - N_TEST_POINTS) / BATCH_SIZE))
+    N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
     print(f"# of steps: {N_STEPS}")
 
     # Model training
     training_loss = {}
-    model = SIREN(3, 1, [128, 128, 128])
+    model = SIREN(3, 1, [256, 256, 256], w0=60)
     print(model)
     print("# parameters =", parameters_to_vector(model.parameters()).numel())
-    optim = torch.optim.Adam(lr=1e-3, params=model.parameters())
+    optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
 
     # Start of the training loop
     for e in range(N_STEPS):
@@ -416,8 +433,16 @@ if "i3d" in METHODS:
         running_loss.backward()
         optim.step()
 
-        if not e % 10 and e > 0:
+        if not e % 100 and e > 0:
             print(f"Epoch {e} --- Loss {running_loss.item()}")
+        
+        
+    fig, ax = plt.subplots(1)
+    for k in training_loss:
+        ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
+
+    fig.legend()
+    plt.savefig(f"loss_i3d_{MESH_TYPE}.png")
 
     model.eval()
     n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
