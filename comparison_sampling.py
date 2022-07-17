@@ -25,14 +25,14 @@ from meshing import (convert_sdf_samples_to_ply, gen_mc_coordinate_grid,
 from model import SIREN
 
 
-EPOCHS = 100
+EPOCHS = 500
 N_TEST_POINTS = 5000
 BATCH_SIZE = 20000
 SEED = 271668
 N_RUNS = 10
 CURVATURE_FRACS = (0.2, 0.6, 0.2)
 LOW_MED_PERCENTILES = (70, 95)
-METHODS = ["i3d", "siren"]
+METHODS = ["i3d"]
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -398,7 +398,9 @@ mesh_map = {
     "lucy": osp.join("data", "lucy_simple_curvs.ply"),
 }
 
-for MESH_TYPE in mesh_map.keys():
+MESH_ORDER = ["armadillo", "bunny", "happy_buddha", "dragon", "lucy"]
+
+for MESH_TYPE in MESH_ORDER:
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
@@ -490,6 +492,7 @@ for MESH_TYPE in mesh_map.keys():
                     domain_bounds=[[-1, -1, -1], [1, 1, 1]],
                     scene=scene,
                     use_curvature=False,
+                    no_sdf=True
                 )
 
                 pts.cuda()
@@ -676,8 +679,8 @@ for MESH_TYPE in mesh_map.keys():
 
         verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
         print(f"Marching cubes inference time {total_time:.3} s")
-        save_ply(verts, faces, osp.join(results_path, f"mc_i3d_{MESH_TYPE}_biasedcurvs.ply"))
-        torch.save(model.state_dict(), osp.join(results_path, f"weights_i3d_{MESH_TYPE}_biasedcurvs.pth"))
+        save_ply(verts, faces, osp.join(results_path, f"mc_i3d_biasedcurvs.ply"))
+        torch.save(model.state_dict(), osp.join(results_path, f"weights_i3d_biasedcurvs.pth"))
         stats_df = pd.DataFrame.from_dict(training_stats)
         stats_df.to_csv(
             osp.join(results_path, "stats_i3d.csv"), sep=";", index=False
