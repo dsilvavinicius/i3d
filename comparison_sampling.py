@@ -363,9 +363,24 @@ netconfig_map = {
         "w0": 60,
         "ww": None,
     },
+    "happy_buddha": {
+        "hidden_layer_config": [256, 256, 256, 256],
+        "w0": 60,
+        "ww": None,
+    },
+    "lucy": {
+        "hidden_layer_config": [256, 256, 256, 256],
+        "w0": 60,
+        "ww": None,
+    },
     "bunny": {
         "hidden_layer_config": [256, 256, 256],
-        "w0": 60,
+        "w0": 30,
+        "ww": None,
+    },
+    "dragon": {
+        "hidden_layer_config": [256, 256, 256],
+        "w0": 30,
         "ww": None,
     },
     "default": {
