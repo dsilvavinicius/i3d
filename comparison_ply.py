@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
+import os
+import os.path as osp
 import time
 import open3d as o3d
 import open3d.core as o3c
@@ -185,20 +186,16 @@ def create_training_data(
 
 
 SEED = 271668
-
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 N_TEST_POINTS = 5000  # Half on surface, half off it. Training points is defined as len(vertices) - TEST_POINTS
 BATCH_SIZE = 20000    # Half on surface, half off it.
-EPOCHS = 100          # Total steps = EPOCHS * (len(vertices) - N_TEST_POINTS) / BATCH_SIZE
+EPOCHS = 500          # Total steps = EPOCHS * (len(vertices) - N_TEST_POINTS) / BATCH_SIZE
 # METHODS = ["rbf", "siren", "i3d", "i3dcurv"]
 METHODS = ["i3d", "siren"]
-MESH_TYPE = "armadillo"
-N_RUNS = 1
+N_RUNS = 10
+MC_RESOLUTION = 128
 
 netconfig_map = {
     "armadillo": {
@@ -206,7 +203,22 @@ netconfig_map = {
         "w0": 60,
         "ww": None,
     },
+    "happy_buddha": {
+        "hidden_layer_config": [256, 256, 256, 256],
+        "w0": 60,
+        "ww": None,
+    },
+    "lucy": {
+        "hidden_layer_config": [256, 256, 256, 256],
+        "w0": 60,
+        "ww": None,
+    },
     "bunny": {
+        "hidden_layer_config": [256, 256, 256],
+        "w0": 30,
+        "ww": None,
+    },
+    "dragon": {
         "hidden_layer_config": [256, 256, 256],
         "w0": 30,
         "ww": None,
@@ -219,379 +231,393 @@ netconfig_map = {
 }
 
 mesh_map = {
-    "armadillo": "D:/Users/tiago/projects/high_order_derivative_learning_for_graphics/data/armadillo.ply",
-    "bunny": "D:/Users/tiago/projects/high_order_derivative_learning_for_graphics/data/bunny.ply",
+    "armadillo": osp.join("data", "armadillo.ply"),
+    "bunny": osp.join("data", "armadillo.ply"),
+    "happy_buddha": osp.join("data", "happy_buddha.ply"),
+    "dragon": osp.join("data", "dragon.ply"),
+    "lucy": osp.join("data", "lucy.ply"),
 }
 
-mesh_data = mesh_map.get(MESH_TYPE, None)
-if mesh_data is None:
-    raise ValueError(f"Invalid mesh provided \"{MESH_TYPE}\".")
-
-mesh = o3d.io.read_triangle_mesh(mesh_data)
-mesh.compute_vertex_normals()
-mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-print(mesh)
-
-min_bound = np.array([-1, -1, -1])
-max_bound = np.array([1, 1, 1])
-
-# Marching cubes inputs
-MC_RESOLUTION = 256
-voxel_size = 2.0 / (MC_RESOLUTION - 1)
-samples = gen_mc_coordinate_grid(MC_RESOLUTION, voxel_size)
-
-# Create a raycasting scene to perform the SDF querying
-scene = o3d.t.geometry.RaycastingScene()
-_ = scene.add_triangles(mesh)
-
-# Creating the test set
-N = len(mesh.vertex["positions"])
-
-test_surf_pts, test_surf_idx = sample_on_surface(
-    mesh,
-    N_TEST_POINTS // 2,
-)
-test_surf_pts = torch.from_numpy(test_surf_pts.numpy())
-
-test_domain_pts = np.random.uniform(
-    min_bound, max_bound,
-    (N_TEST_POINTS // 2, 3)
-)
-test_domain_pts = o3c.Tensor(test_domain_pts, dtype=o3c.Dtype.Float32)
-test_domain_sdf = scene.compute_signed_distance(test_domain_pts)
-test_domain_sdf = torch.from_numpy(test_domain_sdf.numpy())
-test_domain_pts = torch.from_numpy(test_domain_pts.numpy())
-
-test_pts = torch.row_stack((
-    test_surf_pts[..., :3],
-    test_domain_pts
-))
-test_normals = torch.row_stack((
-    test_surf_pts[..., 3:6],
-    torch.zeros_like(test_domain_pts)
-))
-test_sdf = torch.cat((
-    torch.zeros(test_surf_pts.shape[0]),
-    torch.from_numpy(test_domain_sdf.numpy())
-))
-
-
-if "rbf" in METHODS:
-    training_stats = {
-        "mean_abs_error": [-1] * N_RUNS,
-        "max_abs_error": [-1] * N_RUNS,
-        "mean_abs_error_on_surface": [-1] * N_RUNS,
-        "max_abs_error_on_surface": [-1] * N_RUNS,
-        "mean_abs_error_off_surface": [-1] * N_RUNS,
-        "max_abs_error_off_surface": [-1] * N_RUNS,
-        "training_times_s": [-1] * N_RUNS
-    }
-    i = 0
-    while i < N_RUNS:
-        training_pts, _, training_sdf = create_training_data(
-            mesh, BATCH_SIZE // 2, test_surf_idx, BATCH_SIZE // 2,
-            [min_bound, max_bound], scene
-        )
-
-        start = time.time()
-        interp = RBFInterpolator(
-            training_pts.detach().numpy(),
-            training_sdf.detach().numpy(),
-            kernel="cubic",
-            neighbors=30
-        )
-        total_time = time.time() - start
-
-        # Inference on the test data.
-        y_rbf = interp(test_pts.detach().numpy())
-        errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
-        errs_on_surf = errs[:test_surf_pts.shape[0]]
-        errs_off_surf = errs[test_surf_pts.shape[0]:]
-        print(f"RBF Results: MABSE {errs.mean():.3}"
-              f" -- MAXERR {errs.max().item():.3} --- Runtime {total_time} s")
-        print(f"Errors on surface --- "
-              f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
-        print(f"Errors off surface --- "
-              f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
-
-        training_stats["training_times_s"][i] = total_time
-        training_stats["max_abs_error"][i] = errs.max().item()
-        training_stats["mean_abs_error"][i] = errs.mean().item()
-        training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
-        training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
-        training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
-        training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
-
-        i += 1
-
-    verts, faces, total_time = run_marching_cubes(samples, interp, MC_RESOLUTION)
-    print(f"Marching cubes inference time {total_time:.3} s")
-    save_ply(verts, faces, f"mc_rbf_{MESH_TYPE}.ply")
-    stats_df = pd.DataFrame.from_dict(training_stats)
-    stats_df.to_csv(
-        f"stats_rbf_{MESH_TYPE}.csv", sep=";", index=False
-    )
-    stats_df.mean().to_csv(f"stats_rbf_mean_{MESH_TYPE}.csv", sep=";",
-                           index=False)
-    stats_df.std().to_csv(f"stats_rbf_stddev_{MESH_TYPE}.csv", sep=";",
-                          index=False)
-
-################## SIREN
-if "siren" in METHODS:
-    netconfig = netconfig_map.get(MESH_TYPE, netconfig_map["default"])
+for MESH_TYPE in mesh_map.keys():
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
 
-    N_TRAINING_POINTS = N - N_TEST_POINTS
-    N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
-    print(f"# of steps: {N_STEPS}")
+    results_path = osp.join("comparison_results", MESH_TYPE)
+    if not osp.exists(results_path):
+        os.makedirs(results_path)
 
-    training_stats = {
-        "mean_abs_error": [-1] * N_RUNS,
-        "max_abs_error": [-1] * N_RUNS,
-        "mean_abs_error_on_surface": [-1] * N_RUNS,
-        "max_abs_error_on_surface": [-1] * N_RUNS,
-        "mean_abs_error_off_surface": [-1] * N_RUNS,
-        "max_abs_error_off_surface": [-1] * N_RUNS,
-        "mean_normal_alignment": [-1] * N_RUNS,
-        "max_normal_alignment": [-1] * N_RUNS,
-        "training_times_s": [-1] * N_RUNS
-    }
-    i = 0
-    while i < N_RUNS:
-        # Model training
-        training_loss = {}
-        model = SIREN(3, 1, **netconfig).cuda()
-        print(model)
-        print("# parameters =", parameters_to_vector(model.parameters()).numel())
-        optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
+    mesh_data = mesh_map.get(MESH_TYPE, None)
+    if mesh_data is None:
+        raise ValueError(f"Invalid mesh provided \"{MESH_TYPE}\".")
 
-        # Start of the training loop
-        start_time = time.time()
-        for e in range(N_STEPS):
-            training_pts, training_normals, training_sdf = \
-                create_training_data(
-                    mesh,
-                    BATCH_SIZE // 2,
-                    test_surf_idx,
-                    BATCH_SIZE // 2,
-                    [min_bound, max_bound],
-                    scene,
-                    no_sdf=True
-                )
+    mesh = o3d.io.read_triangle_mesh(mesh_data)
+    mesh.compute_vertex_normals()
+    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+    print(mesh)
 
-            training_pts.cuda()
-            training_normals.cuda()
-            training_sdf.cuda()
+    min_bound = np.array([-1, -1, -1])
+    max_bound = np.array([1, 1, 1])
 
-            gt = {
-                "sdf": training_sdf.float().unsqueeze(1),
-                "normals": training_normals.float(),
-            }
+    # Marching cubes inputs
+    voxel_size = 2.0 / (MC_RESOLUTION - 1)
+    samples = gen_mc_coordinate_grid(MC_RESOLUTION, voxel_size)
 
-            optim.zero_grad()
+    # Create a raycasting scene to perform the SDF querying
+    scene = o3d.t.geometry.RaycastingScene()
+    _ = scene.add_triangles(mesh)
 
-            y = model(training_pts)
-            loss = sdf_sitzmann(y, gt)
+    # Creating the test set
+    N = len(mesh.vertex["positions"])
 
-            running_loss = torch.zeros((1, 1)).cuda()
-            for k, v in loss.items():
-                running_loss += v
-                if k not in training_loss:
-                    training_loss[k] = [v.item()]
-                else:
-                    training_loss[k].append(v.item())
+    test_surf_pts, test_surf_idx = sample_on_surface(
+        mesh,
+        N_TEST_POINTS // 2,
+    )
+    test_surf_pts = torch.from_numpy(test_surf_pts.numpy())
 
-            running_loss.backward()
-            optim.step()
+    test_domain_pts = np.random.uniform(
+        min_bound, max_bound,
+        (N_TEST_POINTS // 2, 3)
+    )
+    test_domain_pts = o3c.Tensor(test_domain_pts, dtype=o3c.Dtype.Float32)
+    test_domain_sdf = scene.compute_signed_distance(test_domain_pts)
+    test_domain_sdf = torch.from_numpy(test_domain_sdf.numpy())
+    test_domain_pts = torch.from_numpy(test_domain_pts.numpy())
 
-            if not e % 100 and e > 0:
-                print(f"Epoch {e} --- Loss {running_loss.item()}")
+    test_pts = torch.row_stack((
+        test_surf_pts[..., :3],
+        test_domain_pts
+    ))
+    test_normals = torch.row_stack((
+        test_surf_pts[..., 3:6],
+        torch.zeros_like(test_domain_pts)
+    ))
+    test_sdf = torch.cat((
+        torch.zeros(test_surf_pts.shape[0]),
+        torch.from_numpy(test_domain_sdf.numpy())
+    ))
 
-        total_time = time.time() - start_time
-
-        # fig, ax = plt.subplots(1)
-        # for k in training_loss:
-        #     ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
-
-        # fig.legend()
-        # plt.savefig(f"loss_siren_{MESH_TYPE}.png")
-
-        model.eval().cpu()
-        n_siren, curv_siren = grad_sdf(test_surf_pts[..., :3], model)
-        with torch.no_grad():
-            y_siren = model(test_pts)["model_out"].squeeze()
-            errs = torch.abs(test_sdf - y_siren)
-            errs_on_surf = errs[:test_surf_pts.shape[0]]
-            errs_off_surf = errs[test_surf_pts.shape[0]:]
-
-            errs_normals = 1 - F.cosine_similarity(
-                test_normals[:test_surf_pts.shape[0], ...],
-                n_siren,
-                dim=-1
+    if "rbf" in METHODS:
+        training_stats = {
+            "mean_abs_error": [-1] * N_RUNS,
+            "max_abs_error": [-1] * N_RUNS,
+            "mean_abs_error_on_surface": [-1] * N_RUNS,
+            "max_abs_error_on_surface": [-1] * N_RUNS,
+            "mean_abs_error_off_surface": [-1] * N_RUNS,
+            "max_abs_error_off_surface": [-1] * N_RUNS,
+            "execution_times": [-1] * N_RUNS
+        }
+        i = 0
+        while i < N_RUNS:
+            training_pts, _, training_sdf = create_training_data(
+                mesh, BATCH_SIZE // 2, test_surf_idx, BATCH_SIZE // 2,
+                [min_bound, max_bound], scene
             )
 
-        print(f"SIREN Results:"
-              f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
-        print(f"Errors on surface --- "
-              f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
-        print(f"Errors off surface --- "
-              f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
-        print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
-              f" --- MAX {errs_normals.max().item():.3}")
+            start = time.time()
+            interp = RBFInterpolator(
+                training_pts.detach().numpy(),
+                training_sdf.detach().numpy(),
+                kernel="cubic",
+                neighbors=30
+            )
+            total_time = time.time() - start
 
-        training_stats["training_times_s"][i] = total_time
-        training_stats["max_abs_error"][i] = errs.max().item()
-        training_stats["mean_abs_error"][i] = errs.mean().item()
-        training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
-        training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
-        training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
-        training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
-        training_stats["max_normal_alignment"][i] = errs_normals.max().item()
-        training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
-
-        i += 1
-
-    model.eval()
-    verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
-    print(f"Marching cubes inference time {total_time:.3} s")
-    save_ply(verts, faces, f"mc_siren_{MESH_TYPE}.ply")
-    torch.save(model.state_dict(), f"weights_siren_{MESH_TYPE}.pth")
-    stats_df = pd.DataFrame.from_dict(training_stats)
-    stats_df.to_csv(
-        f"stats_siren_{MESH_TYPE}.csv", sep=";", index=False
-    )
-    stats_df.mean().to_csv(f"stats_siren_mean_{MESH_TYPE}.csv", sep=";",
-                           index=False)
-    stats_df.std().to_csv(f"stats_siren_stddev_{MESH_TYPE}.csv", sep=";",
-                          index=False)
-
-################## I3D
-if "i3d" in METHODS:
-    netconfig = netconfig_map.get(MESH_TYPE, netconfig_map["default"])
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
-
-    N_TRAINING_POINTS = N - N_TEST_POINTS
-    N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
-    print(f"# of steps: {N_STEPS}")
-
-    training_stats = {
-        "mean_abs_error": [-1] * N_RUNS,
-        "max_abs_error": [-1] * N_RUNS,
-        "mean_abs_error_on_surface": [-1] * N_RUNS,
-        "max_abs_error_on_surface": [-1] * N_RUNS,
-        "mean_abs_error_off_surface": [-1] * N_RUNS,
-        "max_abs_error_off_surface": [-1] * N_RUNS,
-        "mean_normal_alignment": [-1] * N_RUNS,
-        "max_normal_alignment": [-1] * N_RUNS,
-        "training_times_s": [-1] * N_RUNS
-    }
-    i = 0
-    while i < N_RUNS:
-        # Model training
-        training_loss = {}
-        model = SIREN(3, 1, **netconfig).cuda()
-        print(model)
-        print("# parameters =", parameters_to_vector(model.parameters()).numel())
-        optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
-
-        # Start of the training loop
-        start_time = time.time()
-        for e in range(N_STEPS):
-            training_pts, training_normals, training_sdf = \
-                create_training_data(
-                    mesh,
-                    BATCH_SIZE // 2,
-                    test_surf_idx,
-                    BATCH_SIZE // 2,
-                    [min_bound, max_bound],
-                    scene
-                )
-
-            training_pts.cuda()
-            training_normals.cuda()
-            training_sdf.cuda()
-
-            gt = {
-                "sdf": training_sdf.float().unsqueeze(1),
-                "normals": training_normals.float(),
-            }
-
-            optim.zero_grad()
-
-            y = model(training_pts)
-            loss = true_sdf(y, gt)
-
-            running_loss = torch.zeros((1, 1)).cuda()
-            for k, v in loss.items():
-                running_loss += v
-                if k not in training_loss:
-                    training_loss[k] = [v.item()]
-                else:
-                    training_loss[k].append(v.item())
-
-            running_loss.backward()
-            optim.step()
-
-            if not e % 100 and e > 0:
-                print(f"Epoch {e} --- Loss {running_loss.item()}")
-
-        total_time = time.time() - start_time
-        # fig, ax = plt.subplots(1)
-        # for k in training_loss:
-        #     ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
-
-        # fig.legend()
-        # plt.savefig(f"loss_i3d_{MESH_TYPE}.png")
-
-        model.eval().cpu()
-        n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
-        with torch.no_grad():
-            y_i3d = model(test_pts)["model_out"].squeeze()
-            errs = torch.abs(test_sdf - y_i3d)
+            # Inference on the test data.
+            y_rbf = interp(test_pts.detach().numpy())
+            errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
             errs_on_surf = errs[:test_surf_pts.shape[0]]
             errs_off_surf = errs[test_surf_pts.shape[0]:]
+            print(f"RBF Results: MABSE {errs.mean():.3}"
+                  f" -- MAXERR {errs.max().item():.3} --- Runtime {total_time} s")
+            print(f"Errors on surface --- "
+                  f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+            print(f"Errors off surface --- "
+                  f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
 
-            errs_normals = 1 - F.cosine_similarity(
-                test_normals[:test_surf_pts.shape[0], ...],
-                n_i3d,
-                dim=-1
-            )
+            training_stats["execution_times"][i] = total_time
+            training_stats["max_abs_error"][i] = errs.max().item()
+            training_stats["mean_abs_error"][i] = errs.mean().item()
+            training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
+            training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
+            training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
+            training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
 
-        print(f"i3d Results:"
-              f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
-        print(f"Errors on surface --- "
-              f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
-        print(f"Errors off surface --- "
-              f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
-        print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
-              f" --- MAX {errs_normals.max().item():.3}")
+            i += 1
 
-        training_stats["training_times_s"][i] = total_time
-        training_stats["max_abs_error"][i] = errs.max().item()
-        training_stats["mean_abs_error"][i] = errs.mean().item()
-        training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
-        training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
-        training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
-        training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
-        training_stats["max_normal_alignment"][i] = errs_normals.max().item()
-        training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
+        verts, faces, total_time = run_marching_cubes(samples, interp, MC_RESOLUTION)
+        print(f"Marching cubes inference time {total_time:.3} s")
+        save_ply(verts, faces, osp.join(results_path, "mc_rbf.ply"))
+        stats_df = pd.DataFrame.from_dict(training_stats)
+        stats_df.to_csv(
+            osp.join(results_path, "stats_rbf.csv"), sep=";", index=False
+        )
+        stats_df.mean().to_csv(
+            osp.join(results_path, "stats_rbf_mean.csv"), sep=";"
+        )
+        stats_df.std().to_csv(
+            osp.join(results_path, "stats_rbf_stddev.csv"), sep=";"
+        )
 
-        i += 1
+    if "siren" in METHODS:
+        netconfig = netconfig_map.get(MESH_TYPE, netconfig_map["default"])
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed(SEED)
 
-    model.eval()
-    verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
-    print(f"Marching cubes inference time {total_time:.3} s")
-    save_ply(verts, faces, f"mc_i3d_{MESH_TYPE}.ply")
-    torch.save(model.state_dict(), f"weights_i3d_{MESH_TYPE}.pth")
-    stats_df = pd.DataFrame.from_dict(training_stats)
-    stats_df.to_csv(
-        f"stats_i3d_{MESH_TYPE}.csv", sep=";", index=False
-    )
-    stats_df.mean().to_csv(f"stats_i3d_mean_{MESH_TYPE}.csv", sep=";",
-                           index=False)
-    stats_df.std().to_csv(f"stats_i3d_stddev_{MESH_TYPE}.csv", sep=";",
-                          index=False)
+        N_TRAINING_POINTS = N - N_TEST_POINTS
+        N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
+        print(f"# of steps: {N_STEPS}")
+
+        training_stats = {
+            "mean_abs_error": [-1] * N_RUNS,
+            "max_abs_error": [-1] * N_RUNS,
+            "mean_abs_error_on_surface": [-1] * N_RUNS,
+            "max_abs_error_on_surface": [-1] * N_RUNS,
+            "mean_abs_error_off_surface": [-1] * N_RUNS,
+            "max_abs_error_off_surface": [-1] * N_RUNS,
+            "mean_normal_alignment": [-1] * N_RUNS,
+            "max_normal_alignment": [-1] * N_RUNS,
+            "execution_times": [-1] * N_RUNS
+        }
+        i = 0
+        while i < N_RUNS:
+            # Model training
+            training_loss = {}
+            model = SIREN(3, 1, **netconfig).cuda()
+            print(model)
+            print("# parameters =", parameters_to_vector(model.parameters()).numel())
+            optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
+
+            # Start of the training loop
+            start_time = time.time()
+            for e in range(N_STEPS):
+                training_pts, training_normals, training_sdf = \
+                    create_training_data(
+                        mesh,
+                        BATCH_SIZE // 2,
+                        test_surf_idx,
+                        BATCH_SIZE // 2,
+                        [min_bound, max_bound],
+                        scene,
+                        no_sdf=True
+                    )
+
+                training_pts = training_pts.cuda()
+                training_normals = training_normals.cuda()
+                training_sdf = training_sdf.cuda()
+
+                gt = {
+                    "sdf": training_sdf.float().unsqueeze(1),
+                    "normals": training_normals.float(),
+                }
+
+                optim.zero_grad()
+
+                y = model(training_pts)
+                loss = sdf_sitzmann(y, gt)
+
+                running_loss = torch.zeros((1, 1)).cuda()
+                for k, v in loss.items():
+                    running_loss += v
+                    if k not in training_loss:
+                        training_loss[k] = [v.item()]
+                    else:
+                        training_loss[k].append(v.item())
+
+                running_loss.backward()
+                optim.step()
+
+                if not e % 100 and e > 0:
+                    print(f"Step {e} --- Loss {running_loss.item()}")
+
+            total_time = time.time() - start_time
+
+            # fig, ax = plt.subplots(1)
+            # for k in training_loss:
+            #     ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
+
+            # fig.legend()
+            # plt.savefig(f"loss_siren_{MESH_TYPE}.png")
+
+            model.eval().cpu()
+            n_siren, curv_siren = grad_sdf(test_surf_pts[..., :3], model)
+            with torch.no_grad():
+                y_siren = model(test_pts)["model_out"].squeeze()
+                errs = torch.abs(test_sdf - y_siren)
+                errs_on_surf = errs[:test_surf_pts.shape[0]]
+                errs_off_surf = errs[test_surf_pts.shape[0]:]
+
+                errs_normals = 1 - F.cosine_similarity(
+                    test_normals[:test_surf_pts.shape[0], ...],
+                    n_siren,
+                    dim=-1
+                )
+
+            print(f"SIREN Results:"
+                  f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
+            print(f"Errors on surface --- "
+                  f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+            print(f"Errors off surface --- "
+                  f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+            print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                  f" --- MAX {errs_normals.max().item():.3}")
+
+            training_stats["execution_times"][i] = total_time
+            training_stats["max_abs_error"][i] = errs.max().item()
+            training_stats["mean_abs_error"][i] = errs.mean().item()
+            training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
+            training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
+            training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
+            training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
+            training_stats["max_normal_alignment"][i] = errs_normals.max().item()
+            training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
+
+            i += 1
+
+        model.eval().cpu()
+        verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
+        print(f"Marching cubes inference time {total_time:.3} s")
+        save_ply(verts, faces, osp.join(results_path, "mc_siren.ply"))
+        torch.save(model.state_dict(), osp.join(results_path, "weights_siren.pth"))
+        stats_df = pd.DataFrame.from_dict(training_stats)
+        stats_df.to_csv(
+            osp.join(results_path, "stats_siren.csv"), sep=";", index=False
+        )
+        stats_df.mean().to_csv(
+            osp.join(results_path, "stats_siren_mean.csv"), sep=";"
+        )
+        stats_df.std().to_csv(
+            osp.join(results_path, "stats_siren_stddev.csv"), sep=";"
+        )
+
+    if "i3d" in METHODS:
+        netconfig = netconfig_map.get(MESH_TYPE, netconfig_map["default"])
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed(SEED)
+
+        N_TRAINING_POINTS = N - N_TEST_POINTS
+        N_STEPS = round(EPOCHS * (2 * N_TRAINING_POINTS / BATCH_SIZE))
+        print(f"# of steps: {N_STEPS}")
+
+        training_stats = {
+            "mean_abs_error": [-1] * N_RUNS,
+            "max_abs_error": [-1] * N_RUNS,
+            "mean_abs_error_on_surface": [-1] * N_RUNS,
+            "max_abs_error_on_surface": [-1] * N_RUNS,
+            "mean_abs_error_off_surface": [-1] * N_RUNS,
+            "max_abs_error_off_surface": [-1] * N_RUNS,
+            "mean_normal_alignment": [-1] * N_RUNS,
+            "max_normal_alignment": [-1] * N_RUNS,
+            "execution_times": [-1] * N_RUNS
+        }
+        i = 0
+        while i < N_RUNS:
+            # Model training
+            training_loss = {}
+            model = SIREN(3, 1, **netconfig).cuda()
+            print(model)
+            print("# parameters =", parameters_to_vector(model.parameters()).numel())
+            optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
+
+            # Start of the training loop
+            start_time = time.time()
+            for e in range(N_STEPS):
+                training_pts, training_normals, training_sdf = \
+                    create_training_data(
+                        mesh,
+                        BATCH_SIZE // 2,
+                        test_surf_idx,
+                        BATCH_SIZE // 2,
+                        [min_bound, max_bound],
+                        scene
+                    )
+
+                training_pts = training_pts.cuda()
+                training_normals = training_normals.cuda()
+                training_sdf = training_sdf.cuda()
+
+                gt = {
+                    "sdf": training_sdf.float().unsqueeze(1),
+                    "normals": training_normals.float(),
+                }
+
+                optim.zero_grad()
+
+                y = model(training_pts)
+                loss = true_sdf(y, gt)
+
+                running_loss = torch.zeros((1, 1)).cuda()
+                for k, v in loss.items():
+                    running_loss += v
+                    if k not in training_loss:
+                        training_loss[k] = [v.item()]
+                    else:
+                        training_loss[k].append(v.item())
+
+                running_loss.backward()
+                optim.step()
+
+                if not e % 100 and e > 0:
+                    print(f"Step {e} --- Loss {running_loss.item()}")
+
+            total_time = time.time() - start_time
+            # fig, ax = plt.subplots(1)
+            # for k in training_loss:
+            #     ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
+
+            # fig.legend()
+            # plt.savefig(f"loss_i3d_{MESH_TYPE}.png")
+
+            model.eval().cpu()
+            n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
+            with torch.no_grad():
+                y_i3d = model(test_pts)["model_out"].squeeze()
+                errs = torch.abs(test_sdf - y_i3d)
+                errs_on_surf = errs[:test_surf_pts.shape[0]]
+                errs_off_surf = errs[test_surf_pts.shape[0]:]
+
+                errs_normals = 1 - F.cosine_similarity(
+                    test_normals[:test_surf_pts.shape[0], ...],
+                    n_i3d,
+                    dim=-1
+                )
+
+            print(f"i3d Results:"
+                  f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
+            print(f"Errors on surface --- "
+                  f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+            print(f"Errors off surface --- "
+                  f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+            print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                  f" --- MAX {errs_normals.max().item():.3}")
+
+            training_stats["execution_times"][i] = total_time
+            training_stats["max_abs_error"][i] = errs.max().item()
+            training_stats["mean_abs_error"][i] = errs.mean().item()
+            training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
+            training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
+            training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
+            training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
+            training_stats["max_normal_alignment"][i] = errs_normals.max().item()
+            training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
+
+            i += 1
+
+        model.eval()
+        verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
+        print(f"Marching cubes infserence time {total_time:.3} s")
+        save_ply(verts, faces, osp.join(results_path, "mc_i3d.ply"))
+        torch.save(model.state_dict(), osp.join(results_path, "weights_i3d.pth"))
+        stats_df = pd.DataFrame.from_dict(training_stats)
+        stats_df.to_csv(
+            osp.join(results_path, "stats_i3d.csv"), sep=";", index=False
+        )
+        stats_df.mean().to_csv(
+            osp.join(results_path, "stats_i3d_mean.csv"), sep=";"
+        )
+        stats_df.std().to_csv(
+            osp.join(results_path, "stats_i3d_stddev.csv"), sep=";"
+        )
