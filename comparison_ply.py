@@ -198,12 +198,12 @@ EPOCHS = 100          # Total steps = EPOCHS * (len(vertices) - N_TEST_POINTS) /
 # METHODS = ["rbf", "siren", "i3d", "i3dcurv"]
 METHODS = ["i3d", "siren"]
 MESH_TYPE = "armadillo"
-N_RUNS = 5
+N_RUNS = 1
 
 netconfig_map = {
     "armadillo": {
-        "hidden_layer_config": [128, 128, 128],
-        "w0": 30,
+        "hidden_layer_config": [256, 256, 256, 256],
+        "w0": 60,
         "ww": None,
     },
     "bunny": {
@@ -284,7 +284,7 @@ if "rbf" in METHODS:
         "max_abs_error_on_surface": [-1] * N_RUNS,
         "mean_abs_error_off_surface": [-1] * N_RUNS,
         "max_abs_error_off_surface": [-1] * N_RUNS,
-        "execution_times": [-1] * N_RUNS
+        "training_times_s": [-1] * N_RUNS
     }
     i = 0
     while i < N_RUNS:
@@ -314,7 +314,7 @@ if "rbf" in METHODS:
         print(f"Errors off surface --- "
               f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
 
-        training_stats["execution_times"][i] = total_time
+        training_stats["training_times_s"][i] = total_time
         training_stats["max_abs_error"][i] = errs.max().item()
         training_stats["mean_abs_error"][i] = errs.mean().item()
         training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
@@ -356,13 +356,13 @@ if "siren" in METHODS:
         "max_abs_error_off_surface": [-1] * N_RUNS,
         "mean_normal_alignment": [-1] * N_RUNS,
         "max_normal_alignment": [-1] * N_RUNS,
-        "execution_times": [-1] * N_RUNS
+        "training_times_s": [-1] * N_RUNS
     }
     i = 0
     while i < N_RUNS:
         # Model training
         training_loss = {}
-        model = SIREN(3, 1, **netconfig)
+        model = SIREN(3, 1, **netconfig).cuda()
         print(model)
         print("# parameters =", parameters_to_vector(model.parameters()).numel())
         optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
@@ -381,6 +381,10 @@ if "siren" in METHODS:
                     no_sdf=True
                 )
 
+            training_pts.cuda()
+            training_normals.cuda()
+            training_sdf.cuda()
+
             gt = {
                 "sdf": training_sdf.float().unsqueeze(1),
                 "normals": training_normals.float(),
@@ -391,7 +395,7 @@ if "siren" in METHODS:
             y = model(training_pts)
             loss = sdf_sitzmann(y, gt)
 
-            running_loss = torch.zeros((1, 1))
+            running_loss = torch.zeros((1, 1)).cuda()
             for k, v in loss.items():
                 running_loss += v
                 if k not in training_loss:
@@ -414,7 +418,7 @@ if "siren" in METHODS:
         # fig.legend()
         # plt.savefig(f"loss_siren_{MESH_TYPE}.png")
 
-        model.eval()
+        model.eval().cpu()
         n_siren, curv_siren = grad_sdf(test_surf_pts[..., :3], model)
         with torch.no_grad():
             y_siren = model(test_pts)["model_out"].squeeze()
@@ -437,7 +441,7 @@ if "siren" in METHODS:
         print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
               f" --- MAX {errs_normals.max().item():.3}")
 
-        training_stats["execution_times"][i] = total_time
+        training_stats["training_times_s"][i] = total_time
         training_stats["max_abs_error"][i] = errs.max().item()
         training_stats["mean_abs_error"][i] = errs.mean().item()
         training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
@@ -483,13 +487,13 @@ if "i3d" in METHODS:
         "max_abs_error_off_surface": [-1] * N_RUNS,
         "mean_normal_alignment": [-1] * N_RUNS,
         "max_normal_alignment": [-1] * N_RUNS,
-        "execution_times": [-1] * N_RUNS
+        "training_times_s": [-1] * N_RUNS
     }
     i = 0
     while i < N_RUNS:
         # Model training
         training_loss = {}
-        model = SIREN(3, 1, [256, 256, 256], w0=60)
+        model = SIREN(3, 1, **netconfig).cuda()
         print(model)
         print("# parameters =", parameters_to_vector(model.parameters()).numel())
         optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
@@ -507,6 +511,10 @@ if "i3d" in METHODS:
                     scene
                 )
 
+            training_pts.cuda()
+            training_normals.cuda()
+            training_sdf.cuda()
+
             gt = {
                 "sdf": training_sdf.float().unsqueeze(1),
                 "normals": training_normals.float(),
@@ -517,7 +525,7 @@ if "i3d" in METHODS:
             y = model(training_pts)
             loss = true_sdf(y, gt)
 
-            running_loss = torch.zeros((1, 1))
+            running_loss = torch.zeros((1, 1)).cuda()
             for k, v in loss.items():
                 running_loss += v
                 if k not in training_loss:
@@ -539,7 +547,7 @@ if "i3d" in METHODS:
         # fig.legend()
         # plt.savefig(f"loss_i3d_{MESH_TYPE}.png")
 
-        model.eval()
+        model.eval().cpu()
         n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
         with torch.no_grad():
             y_i3d = model(test_pts)["model_out"].squeeze()
@@ -562,7 +570,7 @@ if "i3d" in METHODS:
         print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
               f" --- MAX {errs_normals.max().item():.3}")
 
-        training_stats["execution_times"][i] = total_time
+        training_stats["training_times_s"][i] = total_time
         training_stats["max_abs_error"][i] = errs.max().item()
         training_stats["mean_abs_error"][i] = errs.mean().item()
         training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
