@@ -19,13 +19,42 @@ from meshing import (convert_sdf_samples_to_ply, gen_mc_coordinate_grid,
 from model import SIREN
 
 
-def sample_on_surface(mesh,
+def sample_on_surface(mesh: o3d.t.geometry.TriangleMesh,
                       n_points: int,
                       exceptions: list = []) -> (torch.Tensor, np.ndarray):
     """Samples points from a mesh surface.
 
     Slightly modified from `i3d.dataset._sample_on_surface`. Returns the
-    indices of points on surface as well.
+    indices of points on surface as well and excludes points with indices in
+    `exceptions`.
+
+    Parameters
+    ----------
+    mesh: o3d.t.geometry.TriangleMesh
+        The mesh to sample vertices from.
+
+    n_points: int
+        The number of vertices to sample.
+
+    exceptions: list, optional
+        The list of vertices to exclude from the selection. The default value
+        is an empty list, meaning that any vertex might be selected. This works
+        by setting the probabilities of any vertices with indices in
+        `exceptions` to 0 and adjusting the probabilities of the remaining
+        points.
+
+    Returns
+    -------
+    samples: torch.Tensor
+        The samples drawn from `mesh`
+
+    idx: list
+        The index of `samples` in `mesh`. Might be fed as input to further
+        calls of `sample_on_surface`
+
+    See Also
+    --------
+    numpy.random.choice
     """
     if exceptions:
         p = np.array(
@@ -52,7 +81,32 @@ def sample_on_surface(mesh,
 
 def grad_sdf(p: torch.Tensor, model: torch.nn.Module,
              no_curv: bool = False) -> (torch.Tensor, torch.Tensor):
-    """Evaluates the gradient of F (`model`) at points `p`."""
+    """Evaluates the gradient of F (`model`) at points `p`.
+
+    Parameters
+    ----------
+    p: torch.Tensor
+        The input points to feed to `model`.
+
+    model: torch.nn.Module
+        Neural network to calculate the gradient. Note that *the network must
+        be differentiable*.
+
+    no_curv: boolean, optional
+        If set to True, we will not return the curvatures of `model` at `p`.
+        The default value is False, meaning that curvatures will be calculated.
+        If not needed, set it to True, since this calculation might take some
+        time.
+
+    Returns
+    -------
+    gradient: torch.Tensor
+        A tensor with the gradient of `model` at points `p`.
+
+    curvatures: torch.Tensor, None
+        The curvatures of `model` at points `p`. Set to `None` if `no_curv`
+        is True.
+    """
     sdf = model(p)
     coords = sdf['model_in']
     values = sdf['model_out'].unsqueeze(0)
