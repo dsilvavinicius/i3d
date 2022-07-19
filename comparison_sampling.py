@@ -535,7 +535,8 @@ for MESH_TYPE in MESH_ORDER:
             "max_abs_error_on_surface": [-1] * N_RUNS,
             "mean_abs_error_off_surface": [-1] * N_RUNS,
             "max_abs_error_off_surface": [-1] * N_RUNS,
-            "execution_times": [-1] * N_RUNS
+            "training_times": [-1] * N_RUNS,
+            "mc_execution_times": [-1] * N_RUNS,
         }
         i = 0
         while i < N_RUNS:
@@ -550,39 +551,43 @@ for MESH_TYPE in MESH_ORDER:
                 no_sdf=False
             )
 
-            start = time.time()
+            start_training_time = time.time()
             interp = RBFInterpolator(
                 pts.detach().numpy(),
                 sdf.detach().numpy(),
                 kernel="cubic",
-                neighbors=BATCH_SIZE // 20
+                neighbors=300
             )
-            total_time = time.time() - start
+            training_time = time.time() - start_training_time
+            training_stats["training_times"][i] = training_time
 
             # Inference on the test data.
             y_rbf = interp(test_pts.detach().numpy())
             errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
             errs_on_surf = errs[:test_surf_pts.shape[0]]
             errs_off_surf = errs[test_surf_pts.shape[0]:]
-            print(f"RBF Results: MABSE {errs.mean():.3}"
-                  f" -- MAXERR {errs.max().item():.3} --- Runtime {total_time} s")
+
+            print(f"RBF Results: Runtime {training_time} s"
+                  f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
             print(f"Errors on surface --- "
                   f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
             print(f"Errors off surface --- "
                   f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
 
-            training_stats["execution_times"][i] = total_time
             training_stats["max_abs_error"][i] = errs.max().item()
             training_stats["mean_abs_error"][i] = errs.mean().item()
             training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
             training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
             training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
             training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
+
+            # Marching cubes timing test.
+            verts, faces, total_time = run_marching_cubes(samples, interp, MC_RESOLUTION)
+            print(f"Marching cubes inference time {total_time:.3} s")
+            training_stats["mc_execution_times"][i] = total_time
             
             i += 1
 
-        verts, faces, total_time = run_marching_cubes(samples, interp, MC_RESOLUTION)
-        print(f"Marching cubes inference time {total_time:.3} s")
         save_ply(verts, faces, osp.join(results_path, "mc_rbf.ply"))
         stats_df = pd.DataFrame.from_dict(training_stats)
         stats_df.to_csv(
@@ -614,7 +619,8 @@ for MESH_TYPE in MESH_ORDER:
             "max_abs_error_off_surface": [-1] * N_RUNS,
             "mean_normal_alignment": [-1] * N_RUNS,
             "max_normal_alignment": [-1] * N_RUNS,
-            "execution_times": [-1] * N_RUNS
+            "training_times": [-1] * N_RUNS,
+            "mc_execution_times": [-1] * N_RUNS,
         }
         i = 0
         while i < N_RUNS:
@@ -624,8 +630,8 @@ for MESH_TYPE in MESH_ORDER:
             print("# parameters =", parameters_to_vector(model.parameters()).numel())
             optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
 
+            start_training_time = time.time()
             # Start of the training loop
-            start_time = time.time()
             for s in range(N_STEPS):
                 pts, normals, sdf = create_training_data(
                     mesh=mesh,
@@ -666,7 +672,8 @@ for MESH_TYPE in MESH_ORDER:
                 if not s % 100 and s > 0:
                     print(f"Step {s} --- Loss {running_loss.detach().item()}")
 
-            total_time = time.time() - start_time
+            training_time = time.time() - start_training_time
+            training_stats["training_times"][i] = training_time
 
             model.eval().cpu()
             n_siren, curv_siren = grad_sdf(test_surf_pts[..., :3], model)
@@ -682,16 +689,15 @@ for MESH_TYPE in MESH_ORDER:
                     dim=-1
                 )
 
-            print(f"SIREN Results:"
+            print(f"SIREN Results: Runtime {training_time} s"
                   f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
             print(f"Errors on surface --- "
-                  f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+                  f" MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
             print(f"Errors off surface --- "
-                  f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+                  f" MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
             print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
                   f" --- MAX {errs_normals.max().item():.3}")
 
-            training_stats["execution_times"][i] = total_time
             training_stats["max_abs_error"][i] = errs.max().item()
             training_stats["mean_abs_error"][i] = errs.mean().item()
             training_stats["max_abs_error_on_surface"][i] = errs_on_surf.max().item()
@@ -701,10 +707,13 @@ for MESH_TYPE in MESH_ORDER:
             training_stats["max_normal_alignment"][i] = errs_normals.max().item()
             training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
 
+            # Marching cubes timing test.
+            verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
+            print(f"Marching cubes inference time {total_time:.3} s")
+            training_stats["mc_execution_times"][i] = total_time
+
             i += 1
 
-        verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
-        print(f"Marching cubes inference time {total_time:.3} s")
         save_ply(verts, faces, osp.join(results_path, "mc_siren.ply"))
         torch.save(model.state_dict(), osp.join(results_path, "weights_siren.pth"))
         stats_df = pd.DataFrame.from_dict(training_stats)
@@ -737,7 +746,8 @@ for MESH_TYPE in MESH_ORDER:
             "max_abs_error_off_surface": [-1] * N_RUNS,
             "mean_normal_alignment": [-1] * N_RUNS,
             "max_normal_alignment": [-1] * N_RUNS,
-            "execution_times": [-1] * N_RUNS
+            "training_times": [-1] * N_RUNS,
+            "mc_execution_times": [-1] * N_RUNS,
         }
         i = 0
         while i < N_RUNS:
@@ -747,6 +757,7 @@ for MESH_TYPE in MESH_ORDER:
             print("# parameters =", parameters_to_vector(model.parameters()).numel())
             optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
 
+            start_training_time = time.time()
             # Start of the training loop
             for s in range(N_STEPS):
                 pts, normals, sdf = create_training_data(
@@ -789,6 +800,9 @@ for MESH_TYPE in MESH_ORDER:
                 if not s % 100 and s > 0:
                     print(f"Step {s} --- Loss {running_loss.detach().item()}")
 
+            training_time = time.time() - start_training_time
+            training_stats["training_times"][i] = training_time
+
             model.eval().cpu()
             n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
             with torch.no_grad():
@@ -803,7 +817,7 @@ for MESH_TYPE in MESH_ORDER:
                     dim=-1
                 )
 
-            print(f"i3d Results:"
+            print(f"i3d Results: Runtime {training_time} s"
                   f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
             print(f"Errors on surface --- "
                   f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
@@ -821,10 +835,13 @@ for MESH_TYPE in MESH_ORDER:
             training_stats["max_normal_alignment"][i] = errs_normals.max().item()
             training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
 
+            # Marching cubes timing test.
+            verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
+            print(f"Marching cubes inference time {total_time:.3} s")
+            training_stats["mc_execution_times"][i] = total_time
+
             i += 1
 
-        verts, faces, total_time = run_marching_cubes(samples, model, MC_RESOLUTION)
-        print(f"Marching cubes inference time {total_time:.3} s")
         save_ply(verts, faces, osp.join(results_path, f"mc_i3d_biasedcurvs.ply"))
         torch.save(model.state_dict(), osp.join(results_path, f"weights_i3d_biasedcurvs.pth"))
         stats_df = pd.DataFrame.from_dict(training_stats)
