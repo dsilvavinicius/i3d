@@ -141,3 +141,6 @@ dmypy.json
 
 #logs
 logs*
+*.csv
+*.pth
+loss_*_*
