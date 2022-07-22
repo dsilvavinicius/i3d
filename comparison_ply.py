@@ -511,7 +511,7 @@ netconfig_map = {
         "ww": None,
     },
     "bunny": {
-        "hidden_layer_config": [64,64,64],#[256, 256, 256],
+        "hidden_layer_config": [256, 256, 256],
         "w0": 30,
         "ww": None,
     },
