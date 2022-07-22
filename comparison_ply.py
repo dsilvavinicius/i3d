@@ -494,7 +494,7 @@ AVAILABLE_METHODS = {
     "i3duniform": "Our method with our loss, and uniform sampling",
 }
 
-netconfig_map = {
+NETCONFIG_MAP = {
     "armadillo": {
         "hidden_layer_config": [256, 256, 256, 256],
         "w0": 60,
@@ -527,7 +527,7 @@ netconfig_map = {
     }
 }
 
-mesh_map = {
+MESH_MAP = {
     "armadillo": osp.join("data", "armadillo_curvs.ply"),
     "bunny": osp.join("data", "bunny_curvs.ply"),
     "happy_buddha": osp.join("data", "happy_buddha_curvs.ply"),
@@ -545,7 +545,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mesh", default=["all"], nargs="*",
         help=f"The mesh to use when comparing the models, may be any of"
-        f" {list(mesh_map.keys())}, or \"all\" (default). Note that \"all\""
+        f" {list(MESH_MAP.keys())}, or \"all\" (default). Note that \"all\""
         " takes precendence over other options."
     )
     parser.add_argument(
@@ -606,12 +606,12 @@ if __name__ == "__main__":
     # Processing meshes
     meshes_to_run = []
     if "all" in args.mesh:
-        meshes_to_run = mesh_map.keys()
+        meshes_to_run = MESH_MAP.keys()
     else:
         for m in args.mesh:
-            if m not in mesh_map:
+            if m not in MESH_MAP:
                 print(f"Warning: Mesh \"{m}\" not available in "
-                      f"{list(mesh_map.keys())}")
+                      f"{list(MESH_MAP.keys())}")
                 continue
             meshes_to_run.append(m)
 
@@ -624,7 +624,7 @@ if __name__ == "__main__":
         if not osp.exists(results_path):
             os.makedirs(results_path)
 
-        mesh_data = mesh_map.get(current_mesh, None)
+        mesh_data = MESH_MAP.get(current_mesh, None)
         if mesh_data is None:
             raise ValueError(f"Invalid mesh provided \"{current_mesh}\".")
 
@@ -721,8 +721,8 @@ if __name__ == "__main__":
             save_stats_dataframes(training_stats, "rbf", results_path)
 
         if "siren" in args.methods:
-            netconfig = netconfig_map.get(
-                current_mesh, netconfig_map["default"]
+            netconfig = NETCONFIG_MAP.get(
+                current_mesh, NETCONFIG_MAP["default"]
             )
             np.random.seed(args.seed)
             torch.manual_seed(args.seed)
@@ -837,8 +837,8 @@ if __name__ == "__main__":
             save_stats_dataframes(training_stats, "siren", results_path)
 
         if "i3d" in args.methods:
-            netconfig = netconfig_map.get(
-                current_mesh, netconfig_map["default"]
+            netconfig = NETCONFIG_MAP.get(
+                current_mesh, NETCONFIG_MAP["default"]
             )
             np.random.seed(args.seed)
             torch.manual_seed(args.seed)
