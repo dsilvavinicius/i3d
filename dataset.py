@@ -10,8 +10,8 @@ from torch.utils.data import Dataset
 
 
 def _sample_on_surface(mesh: o3d.t.geometry.TriangleMesh,
-                      n_points: int,
-                      exceptions: list = []) -> (torch.Tensor, np.ndarray):
+                       n_points: int,
+                       exceptions: list = []) -> (torch.Tensor, np.ndarray):
     """Samples points from a mesh surface.
 
     Slightly modified from `i3d.dataset._sample_on_surface`. Returns the
@@ -392,7 +392,14 @@ class PointCloud(Dataset):
                 self.off_surface_normals = torch.Tensor(off_surface_normals)
 
         print(f"Loading mesh \"{mesh_path}\".")
-        self.mesh, _ = _read_ply_with_curvatures(mesh_path)
+        print("Using curvatures? ", "YES" if use_curvature else "NO")
+        if use_curvature:
+            self.mesh, _ = _read_ply_with_curvatures(mesh_path)
+        else:
+            mesh = o3d.io.read_triangle_mesh(mesh_path)
+            mesh.compute_vertex_normals()
+            self.mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+            print(self.mesh)
 
         self.batch_size = batch_size
         print(f"Fetching {self.batch_size} on-surface points per iteration.")
@@ -409,10 +416,12 @@ class PointCloud(Dataset):
         self.mesh_size = len(self.mesh.vertex["positions"])
 
         # Binning the curvatures
-        self.curvature_bins = _calc_curvature_bins(
-            torch.from_numpy(self.mesh.vertex["curvatures"].numpy()),
-            curvature_percentiles
-        )
+        self.curvature_bins = None
+        if use_curvature:
+            self.curvature_bins = _calc_curvature_bins(
+                torch.from_numpy(self.mesh.vertex["curvatures"].numpy()),
+                curvature_percentiles
+            )
         print("Done preparing the dataset.")
 
     def __len__(self):
@@ -439,9 +448,15 @@ class PointCloud(Dataset):
 
 if __name__ == "__main__":
     p = PointCloud(
-        "data/armadillo_curvs.ply", batch_size=10, use_curvature=False,
+        "data/armadillo_curvs.ply", batch_size=10, use_curvature=True,
         curvature_fractions=(0.2, 0.7, 0.1), curvature_percentiles=(70, 95)
     )
+    print(len(p))
+    print(p.__getitem__(0))
+    print(p.__getitem__(0))
+    print(p.__getitem__(0))
+
+    p = PointCloud("data/armadillo.ply", batch_size=10, use_curvature=False)
     print(len(p))
     print(p.__getitem__(0))
     print(p.__getitem__(0))
