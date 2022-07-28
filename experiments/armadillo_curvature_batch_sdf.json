@@ -8,7 +8,7 @@
     },
     "dataset": "armadillo_curvs.ply",
     "batch_size": 20000,
-    "checkpoint_path": "logs",
+    "checkpoint_path": "results",
     "experiment_name": "armadillo_curvature_batch_sdf",
     "epochs_to_checkpoint": 10,
     "epochs_to_reconstruction": [1, 10, 100],
