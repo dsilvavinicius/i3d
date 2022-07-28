@@ -167,7 +167,7 @@ if __name__ == "__main__":
         off_surface_normals=off_surface_normals,
         use_curvature=not sampling_config.get("uniform_sampling", True),
         curvature_fractions=sampling_config.get("curvature_iteration_fractions", []),
-        curvature_percentiles=[10, 20]#ampling_config.get("percentile_thresholds", []),
+        curvature_percentiles=sampling_config.get("percentile_thresholds", []),
     )
 
     network_params = parameter_dict["network"]
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     mesh_file = parameter_dict["reconstruction"]["output_file"] + "_best.ply"
     create_mesh(
         model,
-        osp.join("full_path", "reconstructions", mesh_file),
-        N = mesh_resolution,
+        osp.join(full_path, "reconstructions", mesh_file),
+        N=mesh_resolution,
         device=device
     )
