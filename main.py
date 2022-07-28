@@ -10,7 +10,7 @@ import random
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import BatchSampler, DataLoader
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from dataset import PointCloud
 from loss_functions import sdf_sitzmann, true_sdf_curvature, true_sdf
@@ -19,15 +19,15 @@ from model import SIREN
 from util import create_output_paths, load_experiment_parameters
 
 
-def train_model(dataset, model, device, config):
-    EPOCHS = config["epochs"]
+def train_model(dataset, model, device, config) -> torch.nn.Module :
+    epochs = config["epochs"]
     warmup_epochs = config.get("warmup_epochs", 0)
 
-    EPOCHS_TIL_CHECKPOINT = config.get("epochs_to_checkpoint", 0)
-    EPOCHS_TIL_RECONSTRUCTION = config.get("epochs_to_reconstruct", 0)
+    epochs_til_checkpoint = config.get("epochs_to_checkpoint", 0)
+    epochs_til_reconstruction = config.get("epochs_to_reconstruct", 0)
 
-    if EPOCHS_TIL_RECONSTRUCTION and not isinstance(EPOCHS_TIL_RECONSTRUCTION, list):
-        EPOCHS_TIL_RECONSTRUCTION = list(range(1, stop=EPOCHS+1, step=EPOCHS_TIL_RECONSTRUCTION))
+    if epochs_til_reconstruction and not isinstance(epochs_til_reconstruction, list):
+        epochs_til_reconstruction = list(range(1, stop=epochs+1, step=epochs_til_reconstruction))
 
     log_path = config["log_path"]
     loss_fn = config["loss_fn"]
@@ -52,7 +52,7 @@ def train_model(dataset, model, device, config):
     losses = dict()
     best_loss = np.inf
     best_weights = None
-    for epoch in range(EPOCHS):
+    for epoch in range(epochs):
         running_loss = dict()
         for i, (input_data, gt_data) in enumerate(train_loader, start=0):
 
@@ -86,7 +86,7 @@ def train_model(dataset, model, device, config):
             if it in losses:
                 losses[it][epoch] = l
             else:
-                losses[it] = [0.] * EPOCHS
+                losses[it] = [0.] * epochs
                 losses[it][epoch] = l
             writer.add_scalar(it, l, epoch)
 
@@ -105,8 +105,8 @@ def train_model(dataset, model, device, config):
             )
 
         # saving the model at checkpoints
-        if epoch and EPOCHS_TIL_CHECKPOINT and not \
-           epoch % EPOCHS_TIL_CHECKPOINT:
+        if epoch and epochs_til_checkpoint and not \
+           epoch % epochs_til_checkpoint:
             print(f"Saving model for epoch {epoch}")
             torch.save(
                 model.state_dict(),
@@ -118,8 +118,8 @@ def train_model(dataset, model, device, config):
                 osp.join(log_path, "models", "model_current.pth")
             )
 
-        if epoch and EPOCHS_TIL_RECONSTRUCTION and \
-           epoch in EPOCHS_TIL_RECONSTRUCTION:
+        if epoch and epochs_til_reconstruction and \
+           epoch in epochs_til_reconstruction:
             print(f"Reconstructing mesh for epoch {epoch}")
             create_mesh(
                 model,
