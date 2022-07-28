@@ -8,7 +8,7 @@ and a set of checkpoints.
 
 import argparse
 import json
-import os
+import os.path as osp
 import torch
 from meshing import create_mesh
 from model import SIREN
@@ -35,9 +35,9 @@ if __name__ == "__main__":
     with open(args.experiment_path, "r") as fin:
         params = json.load(fin)
 
-    base_path = os.path.join(params["checkpoint_path"], params["experiment_name"])
-    model_path = os.path.join(base_path, "models")
-    dest_path = os.path.join(base_path, "reconstructions")
+    base_path = osp.join(params["checkpoint_path"], params["experiment_name"])
+    model_path = osp.join(base_path, "models")
+    dest_path = osp.join(base_path, "reconstructions")
     reconstruction_opts = params.get("reconstruction", {})
     resolution = reconstruction_opts.get("resolution", 128)
     if args.resolution:
@@ -53,8 +53,8 @@ if __name__ == "__main__":
     for c in args.checkpoints:
         print(f"Marching cubes running for checkpoint \"{c}\"")
 
-        checkpoint_file = os.path.join(model_path, f"model_{c}.pth")
-        if not os.path.exists(checkpoint_file):
+        checkpoint_file = osp.join(model_path, f"model_{c}.pth")
+        if not osp.exists(checkpoint_file):
             print(f"Checkpoint file model_{c}.pth does not exist. Skipping")
             continue
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         )
         create_mesh(
             model,
-            os.path.join(dest_path, f"{c}.ply"),
+            osp.join(dest_path, f"{c}.ply"),
             N=resolution
         )
 
