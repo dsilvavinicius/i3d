@@ -119,27 +119,30 @@ def _lowMedHighCurvSegmentation(
 
     curvatures = on_surface_pts[..., -1]
 
+    n_low_curvature = int(math.floor(proportions[0] * n_samples))
     low_curvature_pts = on_surface_pts[(curvatures >= bin_edges[0]) & (curvatures < bin_edges[1]), ...]
     low_curvature_idx = np.random.choice(
         range(low_curvature_pts.shape[0]),
-        size=int(math.floor(proportions[0] * n_samples)),
-        replace=False
+        size=n_low_curvature,
+        replace=True if n_low_curvature > low_curvature_pts.shape[0] else False
     )
     on_surface_sampled = len(low_curvature_idx)
 
+    n_med_curvature = int(math.ceil(proportions[1] * n_samples))
     med_curvature_pts = on_surface_pts[(curvatures >= bin_edges[1]) & (curvatures < bin_edges[2]), ...]
     med_curvature_idx = np.random.choice(
         range(med_curvature_pts.shape[0]),
-        size=int(math.ceil(proportions[1] * n_samples)),
-        replace=False
+        size=n_med_curvature,
+        replace=True if n_med_curvature > med_curvature_pts.shape[0] else False
     )
     on_surface_sampled += len(med_curvature_idx)
 
+    n_high_curvature = n_samples - on_surface_sampled
     high_curvature_pts = on_surface_pts[(curvatures >= bin_edges[2]) & (curvatures <= bin_edges[3]), ...]
     high_curvature_idx = np.random.choice(
         range(high_curvature_pts.shape[0]),
-        size=n_samples - on_surface_sampled,
-        replace=False
+        size=n_high_curvature,
+        replace=True if n_high_curvature > high_curvature_pts.shape[0] else False
     )
 
     return torch.cat((
