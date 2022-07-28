@@ -2,24 +2,26 @@
 # coding: utf-8
 
 import argparse
+import copy
 import json
 import os
+import os.path as osp
 import random
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from dataset import PointCloud, PointCloudCachedCurvature
+from dataset import PointCloud
 from loss_functions import sdf_sitzmann, true_sdf_curvature, true_sdf
 from meshing import create_mesh
 from model import SIREN
 from util import create_output_paths, load_experiment_parameters
 
 
-def train_model(dataset, model, device, config, silent=False):
-    BATCH_SIZE = config["batch_size"]
+def train_model(dataset, model, device, config):
     EPOCHS = config["epochs"]
+    warmup_epochs = config.get("warmup_epochs", 0)
 
     EPOCHS_TIL_CHECKPOINT = config.get("epochs_to_checkpoint", 0)
     EPOCHS_TIL_RECONSTRUCTION = config.get("epochs_to_reconstruct", 0)
@@ -30,40 +32,29 @@ def train_model(dataset, model, device, config, silent=False):
     log_path = config["log_path"]
     loss_fn = config["loss_fn"]
     optim = config["optimizer"]
-    sampler = config.get("sampler", None)
-    if sampler is not None:
-        train_loader = DataLoader(
-            dataset,
-            batch_sampler=BatchSampler(sampler, batch_size=BATCH_SIZE, drop_last=False),
-            pin_memory=True,
-            num_workers=0
-        )
-    else:
-        train_loader = DataLoader(
-            dataset,
-            shuffle=True,
-            batch_size=1,
-            pin_memory=True,
-            num_workers=0
-        )
+
+    train_loader = DataLoader(
+        dataset,
+        shuffle=True,
+        batch_size=1,
+        pin_memory=True,
+        num_workers=0,
+        drop_last=False,
+    )
     model.to(device)
 
     # Creating the summary storage folder
-    summary_path = os.path.join(log_path, 'summaries')
-    if not os.path.exists(summary_path):
+    summary_path = osp.join(log_path, 'summaries')
+    if not osp.exists(summary_path):
         os.makedirs(summary_path)
     writer = SummaryWriter(summary_path)
 
     losses = dict()
+    best_loss = np.inf
+    best_weights = None
     for epoch in range(EPOCHS):
         running_loss = dict()
         for i, (input_data, gt_data) in enumerate(train_loader, start=0):
-            # If we have a custom sampler, we must reshape the Tensors from
-            # [B, N, D] to [1, B*N, D]
-            # if sampler is not None:
-            #     for k, v in data.items():
-            #         b, n, d = v.size()
-            #         data[k] = v.reshape(1, -1, d)
 
             # get the inputs; data is a list of [inputs, labels]
             inputs = {k: v.to(device) for k, v in input_data.items()}
@@ -88,31 +79,6 @@ def train_model(dataset, model, device, config, silent=False):
             train_loss.backward()
             optim.step()
 
-            # colors = torch.zeros_like(inputs["coords"], device="cpu", requires_grad=False)
-            # squeezed_sdf = gt["sdf"].squeeze(-1)
-            # colors[squeezed_sdf < 0, :] = torch.Tensor([255, 0, 0])
-            # colors[squeezed_sdf == 0, :] = torch.Tensor([0, 255, 0])
-            # colors[squeezed_sdf > 0, :] = torch.Tensor([0, 0, 255])
-
-            # outside_coords = inputs["coords"][squeezed_sdf >= 0, :].unsqueeze(0)
-            # outside_colors = colors[squeezed_sdf >= 0, :].unsqueeze(0)
-            # inside_coords = inputs["coords"][squeezed_sdf <= 0, :].unsqueeze(0)
-            # inside_colors = colors[squeezed_sdf <= 0, :].unsqueeze(0)
-
-            # writer.add_mesh(
-            #     "input_samples_outside",
-            #     outside_coords,
-            #     colors=outside_colors,
-            #     global_step=epoch
-            # )
-
-            # writer.add_mesh(
-            #     "input_samples_inside",
-            #     inside_coords,
-            #     colors=inside_colors,
-            #     global_step=epoch
-            # )
-
             writer.add_scalar("train_loss", train_loss.item(), epoch)
 
         # accumulate statistics
@@ -124,40 +90,42 @@ def train_model(dataset, model, device, config, silent=False):
                 losses[it][epoch] = l
             writer.add_scalar(it, l, epoch)
 
-        if not silent:
-            epoch_loss = 0
-            for k, v in running_loss.items():
-                epoch_loss += v
-            print(f"Epoch: {epoch} - Loss: {epoch_loss}")
+        epoch_loss = 0
+        for k, v in running_loss.items():
+            epoch_loss += v
+        print(f"Epoch: {epoch} - Loss: {epoch_loss}")
+
+        # Saving the best model after warmup.
+        if epoch > warmup_epochs and epoch_loss < best_loss:
+            best_loss = epoch_loss
+            best_weights = copy.deepcopy(model.state_dict())
 
         # saving the model at checkpoints
         if epoch and EPOCHS_TIL_CHECKPOINT and not \
            epoch % EPOCHS_TIL_CHECKPOINT:
-            if not silent:
-                print(f"Saving model for epoch {epoch}")
+            print(f"Saving model for epoch {epoch}")
             torch.save(
                 model.state_dict(),
-                os.path.join(log_path, "models", f"model_{epoch}.pth")
+                osp.join(log_path, "models", f"model_{epoch}.pth")
             )
         else:
             torch.save(
                 model.state_dict(),
-                os.path.join(log_path, "models", "model_current.pth")
+                osp.join(log_path, "models", "model_current.pth")
             )
 
         if epoch and EPOCHS_TIL_RECONSTRUCTION and \
            epoch in EPOCHS_TIL_RECONSTRUCTION:
-            if not silent:
-                print(f"Reconstructing mesh for epoch {epoch}")
+            print(f"Reconstructing mesh for epoch {epoch}")
             create_mesh(
                 model,
-                os.path.join(log_path, "reconstructions", f"{epoch}.ply"),
+                osp.join(log_path, "reconstructions", f"{epoch}.ply"),
                 N=config["mc_resolution"],
                 device=device
             )
             model.train()
 
-    return losses
+    return losses, best_weights
 
 
 if __name__ == "__main__":
@@ -166,12 +134,8 @@ if __name__ == "__main__":
     )
 
     p.add_argument(
-        "experiment_path",
+        "experiment_path", type=str,
         help="Path to the JSON experiment description file"
-    )
-    p.add_argument(
-        "-s", "--silent", action="store_true",
-        help="Suppresses informational output messages"
     )
     args = p.parse_args()
     parameter_dict = load_experiment_parameters(args.experiment_path)
@@ -183,70 +147,38 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    sampling_config = parameter_dict["sampling_opts"]
-
     full_path = create_output_paths(
         parameter_dict["checkpoint_path"],
         parameter_dict["experiment_name"],
         overwrite=False
     )
 
-    n_in_features = 3  # implicit 3D models
-
     # Saving the parameters to the output path
-    with open(os.path.join(full_path, "params.json"), "w+") as fout:
+    with open(osp.join(full_path, "params.json"), "w+") as fout:
         json.dump(parameter_dict, fout, indent=4)
 
-    no_sampler = True
-    if sampling_config.get("sampler"):
-        no_sampler = False
-
+    sampling_config = parameter_dict["sampling_opts"]
     off_surface_sdf = parameter_dict.get("off_surface_sdf", None)
     off_surface_normals = parameter_dict.get("off_surface_normals", None)
-    scaling = parameter_dict.get("scaling", None)
-    use_cached_curvatures = parameter_dict.get("use_cached_curvatures", False)
-    if not use_cached_curvatures:
-        dataset = PointCloud(
-            os.path.join("data", parameter_dict["dataset"]),
-            samples_on_surface=sampling_config["samples_on_surface"],
-            scaling=scaling,
-            off_surface_sdf=off_surface_sdf,
-            off_surface_normals=off_surface_normals,
-            no_sampler=no_sampler,
-            batch_size=parameter_dict["batch_size"],
-        )
-    else:
-        dataset = PointCloudCachedCurvature(
-            os.path.join("data", parameter_dict["dataset"]),
-            samples_on_surface=sampling_config["samples_on_surface"],
-            scaling=scaling,
-            off_surface_sdf=off_surface_sdf,
-            off_surface_normals=off_surface_normals,
-            no_sampler=no_sampler,
-            batch_size=parameter_dict["batch_size"],
-            uniform_sampling=sampling_config.get("uniform_sampling", True),
-            curvature_fracs=sampling_config.get("curvature_iteration_fractions", None),
-            low_med_percentiles=sampling_config.get("percentile_thresholds", None)
-        )
-
-    sampler = None
-    # sampler_opt = sampling_config.get("sampler", None)
-    # if sampler_opt is not None and sampler_opt == "sitzmann":
-    #     sampler = SitzmannSampler(
-    #         dataset,
-    #         sampling_config["samples_off_surface"]
-    #     )
+    dataset = PointCloud(
+        osp.join("data", parameter_dict["dataset"]),
+        batch_size=parameter_dict["batch_size"],
+        off_surface_sdf=off_surface_sdf,
+        off_surface_normals=off_surface_normals,
+        use_curvature=not sampling_config.get("uniform_sampling", True),
+        curvature_fractions=sampling_config.get("curvature_iteration_fractions", []),
+        curvature_percentiles=[10, 20]#ampling_config.get("percentile_thresholds", []),
+    )
 
     network_params = parameter_dict["network"]
     model = SIREN(
-        n_in_features,
+        n_in_features=3,
         n_out_features=1,
         hidden_layer_config=network_params["hidden_layer_nodes"],
         w0=network_params["w0"],
         ww=network_params.get("ww", None)
     )
-    if not args.silent:
-        print(model)
+    print(model)
 
     opt_params = parameter_dict["optimizer"]
     if opt_params["type"] == "adam":
@@ -268,30 +200,33 @@ if __name__ == "__main__":
 
     config_dict = {
         "epochs": parameter_dict["num_epochs"],
+        "warmup_epochs": parameter_dict.get("warmup_epochs", 0),
         "batch_size": parameter_dict["batch_size"],
         "epochs_to_checkpoint": parameter_dict["epochs_to_checkpoint"],
         "epochs_to_reconstruct": parameter_dict["epochs_to_reconstruction"],
-        "sampler": sampler,
         "log_path": full_path,
         "optimizer": optimizer,
         "loss_fn": loss_fn,
         "mc_resolution": parameter_dict["reconstruction"]["resolution"]
     }
 
-    losses = train_model(
+    losses, best_weights = train_model(
         dataset,
         model,
         device,
         config_dict,
-        silent=args.silent
     )
     loss_df = pd.DataFrame.from_dict(losses)
-    loss_df.to_csv(os.path.join(full_path, "losses.csv"), sep=";", index=None)
+    loss_df.to_csv(osp.join(full_path, "losses.csv"), sep=";", index=None)
 
-    # saving the final model
+    # saving the final model and best weights.
     torch.save(
         model.state_dict(),
-        os.path.join(full_path, "models", "model_final.pth")
+        osp.join(full_path, "models", "model_final.pth")
+    )
+    torch.save(
+        best_weights,
+        osp.join(full_path, "models", "model_best.pth")
     )
 
     # reconstructing the final mesh
@@ -300,7 +235,17 @@ if __name__ == "__main__":
 
     create_mesh(
         model,
-        os.path.join(full_path, "reconstructions", mesh_file),
+        osp.join(full_path, "reconstructions", mesh_file),
         N=mesh_resolution,
+        device=device
+    )
+
+    # reconstructing the best mesh
+    model.load_state_dict(best_weights)
+    mesh_file = parameter_dict["reconstruction"]["output_file"] + "_best.ply"
+    create_mesh(
+        model,
+        osp.join("full_path", "reconstructions", mesh_file),
+        N = mesh_resolution,
         device=device
     )
