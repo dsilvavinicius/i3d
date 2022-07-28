@@ -1,5 +1,5 @@
 # High Order Derivative Learning for Graphics
-[Tiago Novello [1]](blank),
+[Tiago Novello [1]](https://sites.google.com/site/tiagonovellodebrito),
 [Vinícius da Silva [2]](https://dsilvavinicius.github.io/),
 [Guilherme Schardong [2]](https://schardong.github.io/),
 [Luiz Schirmer [2]](https://www.lschirmer.com),
@@ -9,7 +9,7 @@
 [1] Institute for Pure and Applied Mathematics (IMPA),
 [2] Pontifical Catholic University of Rio de Janeiro (PUC-Rio)
 
-This is the official implementation of "High Order Derivative Learning for Graphics".
+This is the official implementation of "Differential Geometry for Neural Implicit Models".
 
 ## Get started: the Double Torus Toy Example
 
