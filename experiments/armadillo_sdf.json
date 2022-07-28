@@ -1,15 +1,11 @@
 {
-    "description": "SIREN Learning of the Armadillo mesh using true SDF values and non-uniform sampling.",
+    "description": "SIREN Learning of the Armadillo mesh using true SDF values and uniform sampling.",
     "num_epochs": 100,
     "sampling_opts": {
-        "samples_on_surface": 0,
-        "samples_off_surface": 0,
-        "random_surf_samples": true,
-        "sampler": false
+        "uniform_sampling": true
     },
-    "dataset": "armadillo_stanford.ply",
+    "dataset": "armadillo_curvs.ply",
     "batch_size": 20000,
-    "scaling": "bbox",
     "checkpoint_path": "logs",
     "experiment_name": "armadillo_sdf",
     "epochs_to_checkpoint": 10,
