@@ -314,7 +314,7 @@ def _create_training_data(
     return full_pts.float(), full_normals.float(), full_sdf.float()
 
 
-def _calc_curvature_bins(curvatures: torch.Tensor, percentiles: list):
+def _calc_curvature_bins(curvatures: torch.Tensor, percentiles: list) -> list:
     """Bins the curvature values according to `percentiles`.
 
     Parameters
@@ -323,15 +323,35 @@ def _calc_curvature_bins(curvatures: torch.Tensor, percentiles: list):
         Tensor with the curvature values for the vertices.
 
     percentiles: list
-        List with the percentiles.
+        List with the percentiles. Note that if any values larger than 1 in
+        percentiles is divided by 100, since torch.quantile accepts only
+        values in range [0, 1].
+
+    Returns
+    -------
+    quantiles: list
+        A list with len(percentiles) + 2 elements composed by the minimum, the
+        len(percentiles) values and the maximum values for curvature.
+
+    See Also
+    --------
+    torch.quantile
     """
-    q = torch.quantile(curvatures, torch.Tensor(percentiles) / 100.0)
-    return [
-        curvatures.min().item(),
-        q[0].item(),
-        q[1].item(),
-        curvatures.max().item()
-    ]
+    try:
+        q = torch.quantile(curvatures, torch.Tensor(percentiles))
+    except RuntimeError:
+        percs = [None] * len(percentiles)
+        for i, p in enumerate(percentiles):
+            if p > 1.0:
+                percs[i] = p / 100.0
+                continue
+            percs[i] = percentiles[i]
+        q = torch.quantile(curvatures, torch.Tensor(percs))
+
+    bins = [curvatures.min().item(), curvatures.max().item()]
+    # Hack to insert elements of a list inside another list.
+    bins[1:1] = q.data.tolist()
+    return bins
 
 
 class PointCloud(Dataset):
