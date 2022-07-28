@@ -24,4 +24,11 @@ comparison_ply_cuda:
 comparison_ply:
 	python experiment_scripts/comparison_ply.py --methods rbf siren i3d --resolution 256 --num_runs 10 --device cpu
 
-.PHONY: all clean comparison_sphere comparison_torus comparison_ply_cuda comparison_ply
+.PHONY: all clean comparison_sphere comparison_torus comparison_ply_cuda comparison_ply train_models
+
+train_release_models:
+	python main.py experiments/armadillo_curvature_batch_sdf.json
+	python main.py experiments/bunny_curvature_batch_sdf.json
+	python main.py experiments/dragon_curvature_batch_sdf.json
+	python main.py experiments/buddha_curvature_batch_sdf.json
+	python main.py experiments/lucy_curvature_batch_sdf.json
