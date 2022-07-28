@@ -14,16 +14,14 @@ logs/double_torus/checkpoints/model_current.pth: data/double_torus.xyz
 logs/double_torus/checkpoints/model_current_weights.bin: logs/double_torus/checkpoints/model_current.pth
 	@./tools/double_torus/double_torus_pth2bin.sh
 
-comparison_sphere:
-	python comparison_analytic.py --training_points 5000 --test_points 5000 --input sphere --fraction_on_surface 0.5 --methods rbf siren i3d i3dcurv --mc_resolution 128 --num_runs 100
-
-comparison_torus:
-	python comparison_analytic.py --training_points 5000 --test_points 5000 --input torus --fraction_on_surface 0.5 --methods rbf siren i3d i3dcurv --mc_resolution 128 --num_runs 100
+comparison_analytic:
+	python experiment_scripts/comparison_analytic.py --training_points 5000 --test_points 5000 --input sphere --fraction_on_surface 0.5 --methods rbf siren i3d i3dcurv --mc_resolution 128 --num_runs 100
+	python experiment_scripts/comparison_analytic.py --training_points 5000 --test_points 5000 --input torus --fraction_on_surface 0.5 --methods rbf siren i3d i3dcurv --mc_resolution 128 --num_runs 100
 
 comparison_ply_cuda:
-	python comparison_ply.py --methods rbf siren i3d --resolution 256 --num_runs 10 --device cuda
+	python experiment_scripts/comparison_ply.py --methods rbf siren i3d --resolution 256 --num_runs 10 --device cuda
 
 comparison_ply:
-	python comparison_ply.py --methods rbf siren i3d --resolution 256 --num_runs 10 --device cpu
+	python experiment_scripts/comparison_ply.py --methods rbf siren i3d --resolution 256 --num_runs 10 --device cpu
 
 .PHONY: all clean comparison_sphere comparison_torus comparison_ply_cuda comparison_ply
