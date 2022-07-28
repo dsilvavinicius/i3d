@@ -99,6 +99,10 @@ def train_model(dataset, model, device, config):
         if epoch > warmup_epochs and epoch_loss < best_loss:
             best_loss = epoch_loss
             best_weights = copy.deepcopy(model.state_dict())
+            torch.save(
+                best_weights,
+                osp.join(log_path, "models", "model_best.pth")
+            )
 
         # saving the model at checkpoints
         if epoch and EPOCHS_TIL_CHECKPOINT and not \
@@ -219,20 +223,15 @@ if __name__ == "__main__":
     loss_df = pd.DataFrame.from_dict(losses)
     loss_df.to_csv(osp.join(full_path, "losses.csv"), sep=";", index=None)
 
-    # saving the final model and best weights.
+    # saving the final model.
     torch.save(
         model.state_dict(),
         osp.join(full_path, "models", "model_final.pth")
-    )
-    torch.save(
-        best_weights,
-        osp.join(full_path, "models", "model_best.pth")
     )
 
     # reconstructing the final mesh
     mesh_file = parameter_dict["reconstruction"]["output_file"] + ".ply"
     mesh_resolution = parameter_dict["reconstruction"]["resolution"]
-
     create_mesh(
         model,
         osp.join(full_path, "reconstructions", mesh_file),
