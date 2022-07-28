@@ -61,7 +61,21 @@ If everything works, SHADERed should show the following image:
 ## Citation
 If you find our work useful in your research, please cite:
 ```
-Bibtex here!
+@ARTICLE{2022arXiv220109263N,
+       author = {{Novello}, Tiago and {Schardong}, Guilherme and {Schirmer}, Luiz and {da Silva}, Vinicius and {Lopes}, Helio and {Velho}, Luiz},
+        title = "{Differential Geometry for Neural Implicit Models}",
+      journal = {arXiv e-prints},
+     keywords = {Computer Science - Graphics, Computer Science - Machine Learning},
+         year = 2022,
+        month = jan,
+          eid = {arXiv:2201.09263},
+        pages = {arXiv:2201.09263},
+archivePrefix = {arXiv},
+       eprint = {2201.09263},
+ primaryClass = {cs.GR},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2022arXiv220109263N},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
 ```
 
 ## Contact
