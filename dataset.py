@@ -399,10 +399,9 @@ class PointCloud(Dataset):
             mesh = o3d.io.read_triangle_mesh(mesh_path)
             mesh.compute_vertex_normals()
             self.mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-            print(self.mesh)
 
         self.batch_size = batch_size
-        print(f"Fetching {self.batch_size} on-surface points per iteration.")
+        print(f"Fetching {self.batch_size // 2} on-surface points per iteration.")
 
         print("Creating point-cloud and acceleration structures.")
         self.off_surface_sdf = off_surface_sdf
@@ -425,7 +424,7 @@ class PointCloud(Dataset):
         print("Done preparing the dataset.")
 
     def __len__(self):
-        return self.mesh_size // self.batch_size
+        return 2 * self.mesh_size // self.batch_size
 
     def __getitem__(self, idx):
         pts, normals, sdf = _create_training_data(
