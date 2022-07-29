@@ -19,7 +19,7 @@ from model import SIREN
 from util import create_output_paths, load_experiment_parameters
 
 
-def train_model(dataset, model, device, config) -> torch.nn.Module :
+def train_model(dataset, model, device, config) -> torch.nn.Module:
     epochs = config["epochs"]
     warmup_epochs = config.get("warmup_epochs", 0)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         "warmup_epochs": parameter_dict.get("warmup_epochs", 0),
         "batch_size": parameter_dict["batch_size"],
         "epochs_to_checkpoint": parameter_dict["epochs_to_checkpoint"],
-        "epochs_to_reconstruct": parameter_dict["epochs_to_reconstruction"],
+        "epochs_to_reconstruct": parameter_dict.get("epochs_to_reconstruction", None),
         "log_path": full_path,
         "optimizer": optimizer,
         "loss_fn": loss_fn,
@@ -241,10 +241,9 @@ if __name__ == "__main__":
 
     # reconstructing the best mesh
     model.load_state_dict(best_weights)
-    mesh_file = parameter_dict["reconstruction"]["output_file"] + "_best.ply"
     create_mesh(
         model,
-        osp.join(full_path, "reconstructions", mesh_file),
+        osp.join(full_path, "reconstructions", "best.ply"),
         N=mesh_resolution,
         device=device
     )
