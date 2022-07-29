@@ -8,6 +8,7 @@ and a set of checkpoints.
 
 import argparse
 import json
+import os
 import os.path as osp
 import torch
 from meshing import create_mesh
@@ -38,6 +39,10 @@ if __name__ == "__main__":
     base_path = osp.join(params["checkpoint_path"], params["experiment_name"])
     model_path = osp.join(base_path, "models")
     dest_path = osp.join(base_path, "reconstructions")
+
+    if not osp.exists(dest_path):
+        os.makedirs(dest_path)
+
     reconstruction_opts = params.get("reconstruction", {})
     resolution = reconstruction_opts.get("resolution", 128)
     if args.resolution:
@@ -47,7 +52,8 @@ if __name__ == "__main__":
         n_in_features=3,
         n_out_features=1,
         hidden_layer_config=params["network"]["hidden_layer_nodes"],
-        w0=params["network"]["w0"]
+        w0=params["network"]["w0"],
+        ww=params["network"].get("ww", None)
     )
 
     for c in args.checkpoints:
