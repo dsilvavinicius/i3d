@@ -6,7 +6,7 @@
         "curvature_iteration_fractions": [0.2, 0.6, 0.2],
         "percentile_thresholds": [0.6, 0.95]
     },
-    "dataset": "buddha_curvs.ply",
+    "dataset": "happy_buddha_curvs.ply",
     "batch_size": 20000,
     "checkpoint_path": "results",
     "experiment_name": "buddha_biased_curvature_sdf",
