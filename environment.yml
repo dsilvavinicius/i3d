@@ -83,4 +83,3 @@ dependencies:
     - scikit-image==0.19.3
     - scipy==1.8.1
     - tifffile==2022.7.28
-prefix: C:\Users\schardong\.conda\envs\i3d
