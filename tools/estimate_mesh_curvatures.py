@@ -17,11 +17,13 @@ from util import siren_v1_to_v2
 from meshing import save_ply
 
 
-def from_pth(path, w0=None, ww=None):
+def from_pth(path, device="cpu", w0=None, ww=None):
     if not osp.exists(path):
         raise ValueError(f"Weights file not found at \"{path}\"")
 
-    weights = torch.load(path)
+    print(path)
+
+    weights = torch.load(path, map_location=torch.device(device))
     # Each layer has two tensors, one for weights other for biases.
     n_layers = len(weights) // 2
     hidden_layer_config = [None] * (n_layers - 1)
@@ -65,7 +67,7 @@ mesh_map = {
     "lucy": "./data/lucy_simple.ply",
 }
 
-MESH_TYPE = "armadillo"
+MESH_TYPE = "dragon"
 
 mesh = o3d.io.read_triangle_mesh(mesh_map[MESH_TYPE])
 mesh.compute_vertex_normals()
@@ -74,18 +76,20 @@ print(mesh)
 
 coords = torch.from_numpy(mesh.vertex["positions"].numpy())
 
-decoder = from_pth("./results/armadillo_biased_curvature_sdf/models/model_best.pth", w0=30)
-decoder.eval()
+model = from_pth(
+    f"./results/{MESH_TYPE}_biased_curvature_sdf/models/model_best.pth", w0=30
+).eval()
+print(model)
 
-# model = decoder(coords)
-# X = model['model_in']
-# y = model['model_out']
+out = model(coords)
+X = out['model_in']
+y = out['model_out']
 
-# curvatures = diff_operators.mean_curvature(y, X)
-# verts = np.hstack((coords.detach().numpy(), mesh.vertex["normals"].numpy(), curvatures.detach().numpy()))
-# print(verts.shape)
-
-# faces = mesh.triangle["indices"].numpy()
-
-# save_ply(verts, faces, "./data/armadillo_test_curvs.ply",
-#          attrs=[("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")])
+curvatures = diff_operators.mean_curvature(y, X)
+verts = np.hstack((coords.detach().numpy(),
+                   mesh.vertex["normals"].numpy(),
+                   curvatures.detach().numpy()))
+print(verts.shape)
+faces = mesh.triangle["indices"].numpy()
+save_ply(verts, faces, f"./data/{MESH_TYPE}_test_curvs.ply",
+         attrs=[("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")])
