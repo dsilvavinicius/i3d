@@ -60,36 +60,38 @@ def from_pth(path, device="cpu", w0=None, ww=None):
 
 
 mesh_map = {
-    "armadillo": "./data/armadillo.ply",
-    "bunny": "./data/bunny.ply",
-    "dragon": "./data/dragon.ply",
-    "happy_buddha": "./data/happy_buddha.ply",
-    "lucy": "./data/lucy_simple.ply",
+    "armadillo": ["./data/armadillo.ply", 60],
+    "bunny": ["./data/bunny.ply", 30],
+    "buddha": ["./data/happy_buddha.ply", 60],
+    "dragon": ["./data/dragon.ply", 60],
+    "lucy": ["./data/lucy_simple.ply", 60],
 }
 
-MESH_TYPE = "dragon"
+for MESH_TYPE in mesh_map.keys():
+    mesh_path, w0 = mesh_map[MESH_TYPE]
+    mesh = o3d.io.read_triangle_mesh(mesh_path)
+    mesh.compute_vertex_normals()
+    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+    print(mesh)
 
-mesh = o3d.io.read_triangle_mesh(mesh_map[MESH_TYPE])
-mesh.compute_vertex_normals()
-mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-print(mesh)
+    coords = torch.from_numpy(mesh.vertex["positions"].numpy())
 
-coords = torch.from_numpy(mesh.vertex["positions"].numpy())
+    model = from_pth(
+        f"./results/{MESH_TYPE}_biased_curvature_sdf/models/model_best.pth",
+        w0=w0
+    ).eval()
+    print(model)
 
-model = from_pth(
-    f"./results/{MESH_TYPE}_biased_curvature_sdf/models/model_best.pth", w0=30
-).eval()
-print(model)
+    out = model(coords)
+    X = out['model_in']
+    y = out['model_out']
 
-out = model(coords)
-X = out['model_in']
-y = out['model_out']
+    curvatures = diff_operators.mean_curvature(y, X)
+    verts = np.hstack((coords.detach().numpy(),
+                       mesh.vertex["normals"].numpy(),
+                       curvatures.detach().numpy()))
+    faces = mesh.triangle["indices"].numpy()
 
-curvatures = diff_operators.mean_curvature(y, X)
-verts = np.hstack((coords.detach().numpy(),
-                   mesh.vertex["normals"].numpy(),
-                   curvatures.detach().numpy()))
-print(verts.shape)
-faces = mesh.triangle["indices"].numpy()
-save_ply(verts, faces, f"./data/{MESH_TYPE}_test_curvs.ply",
-         attrs=[("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")])
+    attrs = [("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")]
+    save_ply(verts, faces, f"./data/{MESH_TYPE}_test_curvs.ply",
+             vertex_attributes=attrs)
