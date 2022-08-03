@@ -17,8 +17,27 @@ from meshing import save_ply
 
 
 def from_pth(path, device="cpu", w0=None, ww=None):
+    """Builds a SIREN given a weights file.
+
+    Parameters
+    ----------
+    path: str
+        Path to the pth file.
+
+    device: str, optional
+        Device to load the weights. Default value is cpu.
+
+    Returns
+    -------
+    model: torch.nn.Module
+        The resulting model.
+
+    Raises
+    ------
+    FileNotFoundError if `path` points to a non-existing file.
+    """
     if not osp.exists(path):
-        raise ValueError(f"Weights file not found at \"{path}\"")
+        raise FileNotFoundError(f"Weights file not found at \"{path}\"")
 
     weights = torch.load(path, map_location=torch.device(device))
     # Each layer has two tensors, one for weights other for biases.
