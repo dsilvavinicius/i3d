@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-"""Script to calculate the mesh curvatures given an implicit representation
-of it."""
+"""
+Script to calculate the mesh curvatures given an implicit representation
+of it.
+"""
 
-import os
 import os.path as osp
-# import plyfile
 import open3d as o3d
-# import open3d.core as o3c
 import numpy as np
 import torch
 import diff_operators
@@ -20,8 +19,6 @@ from meshing import save_ply
 def from_pth(path, device="cpu", w0=None, ww=None):
     if not osp.exists(path):
         raise ValueError(f"Weights file not found at \"{path}\"")
-
-    print(path)
 
     weights = torch.load(path, map_location=torch.device(device))
     # Each layer has two tensors, one for weights other for biases.
@@ -93,5 +90,5 @@ for MESH_TYPE in mesh_map.keys():
     faces = mesh.triangle["indices"].numpy()
 
     attrs = [("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")]
-    save_ply(verts, faces, f"./data/{MESH_TYPE}_test_curvs.ply",
+    save_ply(verts, faces, f"./results/{MESH_TYPE}_calc_curvs.ply",
              vertex_attributes=attrs)
