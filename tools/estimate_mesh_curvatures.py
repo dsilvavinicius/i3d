@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+"""Script to calculate the mesh curvatures given an implicit representation
+of it."""
+
+import os
+import os.path as osp
 # import plyfile
 import open3d as o3d
 # import open3d.core as o3c
@@ -7,6 +15,46 @@ import diff_operators
 from model import SIREN
 from util import siren_v1_to_v2
 from meshing import save_ply
+
+
+def from_pth(path, w0=None, ww=None):
+    if not osp.exists(path):
+        raise ValueError(f"Weights file not found at \"{path}\"")
+
+    weights = torch.load(path)
+    # Each layer has two tensors, one for weights other for biases.
+    n_layers = len(weights) // 2
+    hidden_layer_config = [None] * (n_layers - 1)
+    keys = list(weights.keys())
+
+    bias_keys = [k for k in keys if "bias" in k]
+    i = 0
+    while i < (n_layers - 1):
+        k = bias_keys[i]
+        hidden_layer_config[i] = weights[k].shape[0]
+        i += 1
+
+    n_in_features = weights[keys[0]].shape[1]
+    n_out_features = weights[keys[-1]].shape[0]
+    model = SIREN(
+        n_in_features=n_in_features,
+        n_out_features=n_out_features,
+        hidden_layer_config=hidden_layer_config,
+        w0=w0, ww=ww
+    )
+
+    # Loads the weights. Converts to version 2 if they are from the old version
+    # of SIREN.
+    try:
+        model.load_state_dict(weights)
+    except RuntimeError:
+        print("Found weights from old version of SIREN. Converting to v2.")
+        new_weights, diff = siren_v1_to_v2(weights, True)
+        new_weights_file = path.split(".")[0] + "_v2.pth"
+        torch.save(new_weights, new_weights_file)
+        model.load_state_dict(new_weights)
+
+    return model
 
 
 mesh_map = {
@@ -26,30 +74,18 @@ print(mesh)
 
 coords = torch.from_numpy(mesh.vertex["positions"].numpy())
 
-decoder = SIREN(3, 1, [256, 256, 256, 256], w0=30)
-
-weights_file = "./results/armadillo_biased_curvature_sdf/models/model_best.pth"
-weights = torch.load(weights_file, map_location=torch.device("cuda:0"))
-try:
-    decoder.load_state_dict(weights)
-except RuntimeError:
-    new_weights, diff = siren_v1_to_v2(weights, True)
-    print(diff)
-    new_weights_file = weights_file.split(".")[0] + "_v2.pth"
-    torch.save(new_weights, weights_file)
-    decoder.load_state_dict(new_weights)
-
+decoder = from_pth("./results/armadillo_biased_curvature_sdf/models/model_best.pth", w0=30)
 decoder.eval()
 
-model = decoder(coords)
-X = model['model_in']
-y = model['model_out']
+# model = decoder(coords)
+# X = model['model_in']
+# y = model['model_out']
 
-curvatures = diff_operators.mean_curvature(y, X)
-verts = np.hstack((coords.detach().numpy(), mesh.vertex["normals"].numpy(), curvatures.detach().numpy()))
-print(verts.shape)
+# curvatures = diff_operators.mean_curvature(y, X)
+# verts = np.hstack((coords.detach().numpy(), mesh.vertex["normals"].numpy(), curvatures.detach().numpy()))
+# print(verts.shape)
 
-faces = mesh.triangle["indices"].numpy()
+# faces = mesh.triangle["indices"].numpy()
 
-save_ply(verts, faces, "./data/armadillo_test_curvs.ply",
-         attrs=[("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")])
+# save_ply(verts, faces, "./data/armadillo_test_curvs.ply",
+#          attrs=[("nx", "f4"), ("ny", "f4"), ("nz", "f4"), ("quality", "f4")])
