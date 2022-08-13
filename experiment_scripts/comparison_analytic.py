@@ -6,6 +6,7 @@ import argparse
 import json
 import time
 import os.path as osp
+import numdifftools as nd
 import numpy as np
 import pandas as pd
 from scipy.interpolate import RBFInterpolator
@@ -56,6 +57,23 @@ class sdf_torus(torch.nn.Module):
         dist = torch.sqrt(qx ** 2 + z ** 2) - self.a ** 2
 
         return {"model_in": p, "model_out": dist}
+
+
+# From https://stackoverflow.com/questions/20708038/scipy-misc-derivative-for-multiple-argument-function
+def partial_function(f___,input,pos,value):
+    tmp  = input[pos]
+    input[pos] = value
+    ret = f___(input[None, ...])
+    input[pos] = tmp
+    return ret
+
+
+def partial_derivative(f, point):
+    ret = np.empty(len(point))
+    for i in range(len(point)):
+        fg = lambda x:partial_function(f, point, i, x)
+        ret[i] = nd.Derivative(fg, step=1e-6, order=3)(point[i])
+    return ret
 
 
 model_map = {
@@ -178,6 +196,8 @@ if __name__ == "__main__":
             "max_abs_error_on_surface": [-1] * args.num_runs,
             "mean_abs_error_off_surface": [-1] * args.num_runs,
             "max_abs_error_off_surface": [-1] * args.num_runs,
+            "mean_normal_alignment": [-1] * args.num_runs,
+            "max_normal_alignment": [-1] * args.num_runs,
             "execution_times": [-1] * args.num_runs
         }
         i = 0
@@ -206,15 +226,25 @@ if __name__ == "__main__":
 
             # Inference on the test data.
             y_rbf = interp(test_pts.detach().numpy())
+            n_rbf = torch.Tensor(
+                [partial_derivative(interp, test_pts.detach().numpy()[j, :]) for j in range(args.test_points)]
+            )
             errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
             errs_on_surf = errs[:test_surf_pts.shape[0]]
             errs_off_surf = errs[test_surf_pts.shape[0]:]
+            errs_normals = 1 - F.cosine_similarity(
+                test_normals[:test_surf_pts.shape[0], ...],
+                n_rbf[:test_surf_pts.shape[0], ...],
+                dim=-1
+            )
             print(f"RBF Results: MABSE {errs.mean():.3}"
                   f" -- MAXERR {errs.max().item():.3} --- Runtime {tot_time} s")
             print(f"Errors on surface --- "
                   f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
             print(f"Errors off surface --- "
                   f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+            print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                  f" --- MAX {errs_normals.max().item():.3}")
             training_stats["execution_times"][i] = tot_time
             training_stats["max_abs_error"][i] = errs.max().item()
             training_stats["mean_abs_error"][i] = errs.mean().item()
@@ -222,6 +252,8 @@ if __name__ == "__main__":
             training_stats["mean_abs_error_on_surface"][i] = errs_on_surf.mean().item()
             training_stats["max_abs_error_off_surface"][i] = errs_off_surf.max().item()
             training_stats["mean_abs_error_off_surface"][i] = errs_off_surf.mean().item()
+            training_stats["max_normal_alignment"][i] = errs_normals.max().item()
+            training_stats["mean_normal_alignment"][i] = errs_normals.mean().item()
             i += 1
 
         # Marching cubes
