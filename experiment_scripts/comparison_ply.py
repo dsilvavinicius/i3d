@@ -6,6 +6,7 @@ import math
 import os
 import os.path as osp
 import time
+import numdifftools as nd
 import numpy as np
 import open3d as o3d
 import open3d.core as o3c
@@ -154,6 +155,7 @@ def sample_on_surface(mesh: o3d.t.geometry.TriangleMesh,
     )
     on_points = mesh.vertex["positions"].numpy()[idx]
     on_normals = mesh.vertex["normals"].numpy()[idx]
+    on_points += on_normals * np.repeat(np.random.uniform(-0.0001, 0.0001, n_points)[:, None], 3, axis=1)
 
     return torch.from_numpy(np.hstack((
         on_points,
@@ -348,7 +350,7 @@ def create_training_data(
     return full_pts.float(), full_normals.float(), full_sdf.float()
 
 
-def read_ply(path: str):
+def read_ply(path: str, with_curvatures=True):
     """Reads a PLY file with position, normal and curvature info.
 
     Note that we expect the input ply to contain x,y,z vertex data, as well
@@ -375,17 +377,22 @@ def read_ply(path: str):
     PlyData.read, o3d.t.geometry.TriangleMesh
     """
     # Reading the PLY file with curvature info
+    n_columns = 6
+    if with_curvatures:
+        n_columns = 7
     with open(path, "rb") as f:
         plydata = PlyData.read(f)
         num_verts = plydata["vertex"].count
-        vertices = np.zeros(shape=(num_verts, 7), dtype=np.float32)
+        vertices = np.zeros(shape=(num_verts, n_columns), dtype=np.float32)
         vertices[:, 0] = plydata["vertex"].data["x"]
         vertices[:, 1] = plydata["vertex"].data["y"]
         vertices[:, 2] = plydata["vertex"].data["z"]
         vertices[:, 3] = plydata["vertex"].data["nx"]
         vertices[:, 4] = plydata["vertex"].data["ny"]
         vertices[:, 5] = plydata["vertex"].data["nz"]
-        vertices[:, 6] = plydata["vertex"].data["quality"]
+        if with_curvatures:
+            vertices[:, 6] = plydata["vertex"].data["quality"]
+        print(vertices.shape)
 
         faces = np.stack(plydata["face"].data["vertex_indices"])
 
@@ -394,7 +401,8 @@ def read_ply(path: str):
     mesh = o3d.t.geometry.TriangleMesh(device)
     mesh.vertex["positions"] = o3c.Tensor(vertices[:, :3], dtype=o3c.float32)
     mesh.vertex["normals"] = o3c.Tensor(vertices[:, 3:6], dtype=o3c.float32)
-    mesh.vertex["curvatures"] = o3c.Tensor(vertices[:, -1], dtype=o3c.float32)
+    if with_curvatures:
+        mesh.vertex["curvatures"] = o3c.Tensor(vertices[:, -1], dtype=o3c.float32)
     mesh.triangle["indices"] = o3c.Tensor(faces, dtype=o3c.int32)
 
     return mesh, vertices
@@ -483,6 +491,23 @@ def save_stats_dataframes(stats_dict: dict, method: str, path: str) -> None:
         )
 
 
+# From https://stackoverflow.com/questions/20708038/scipy-misc-derivative-for-multiple-argument-function
+def partial_function(f___, input, pos, value):
+    tmp = input[pos]
+    input[pos] = value
+    ret = f___(input[None, ...])
+    input[pos] = tmp
+    return ret
+
+
+def partial_derivative(f, point):
+    ret = np.empty(len(point))
+    for i in range(len(point)):
+        ret[i] = nd.Derivative(lambda x: partial_function(f, point, i, x),
+                               step=1e-6, order=3)(point[i])
+    return ret
+
+
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -533,6 +558,7 @@ MESH_MAP = {
     "happy_buddha": osp.join("data", "happy_buddha_curvs.ply"),
     "dragon": osp.join("data", "dragon_curvs.ply"),
     "lucy": osp.join("data", "lucy_simple_curvs.ply"),
+    "cad0": osp.join("data", "cc0.ply"),
 }
 
 if __name__ == "__main__":
@@ -628,7 +654,7 @@ if __name__ == "__main__":
         if mesh_data is None:
             raise ValueError(f"Invalid mesh provided \"{current_mesh}\".")
 
-        mesh, vertices = read_ply(mesh_data)
+        mesh, vertices = read_ply(mesh_data, with_curvatures=False)
         min_bound = np.array([-1, -1, -1])
         max_bound = np.array([1, 1, 1])
 
@@ -691,21 +717,31 @@ if __name__ == "__main__":
                     training_pts.detach().numpy(),
                     training_sdf.detach().numpy(),
                     kernel="cubic",
-                    neighbors=30
+                    neighbors=300
                 )
                 training_time = time.time() - start_training_time
 
                 # Inference on the test data.
                 y_rbf = interp(test_pts.detach().numpy())
+                n_rbf = torch.Tensor(
+                    [partial_derivative(interp, test_pts.detach().numpy()[j, :]) for j in range(args.test_points)]
+                )
                 errs = torch.abs(test_sdf.detach() - torch.from_numpy(y_rbf))
                 errs_on_surf = errs[:test_surf_pts.shape[0]]
                 errs_off_surf = errs[test_surf_pts.shape[0]:]
+                errs_normals = 1 - F.cosine_similarity(
+                    test_normals[:test_surf_pts.shape[0], ...],
+                    n_rbf[:test_surf_pts.shape[0], ...],
+                    dim=-1
+                )
                 print(f"RBF Results: MABSE {errs.mean():.3}"
                       f" -- MAXERR {errs.max().item():.3} --- Runtime {training_time} s")
                 print(f"Errors on surface --- "
                       f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
                 print(f"Errors off surface --- "
                       f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+                print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                      f" --- MAX {errs_normals.max().item():.3}")
 
                 verts, faces, inference_time = run_marching_cubes(
                     samples, interp, args.resolution
@@ -713,7 +749,7 @@ if __name__ == "__main__":
                 print(f"Marching cubes inference time {inference_time:.3} s")
 
                 log_stats(training_stats, i, training_time, inference_time, errs,
-                          errs_on_surf, errs_off_surf)
+                          errs_on_surf, errs_off_surf, errs_normals)
 
                 i += 1
 
@@ -963,3 +999,116 @@ if __name__ == "__main__":
                 model.state_dict(), osp.join(results_path, "weights_i3d.pth")
             )
             save_stats_dataframes(training_stats, "i3d", results_path)
+
+        if "i3duniform" in args.methods:
+            netconfig = NETCONFIG_MAP.get(
+                current_mesh, NETCONFIG_MAP["default"]
+            )
+            np.random.seed(args.seed)
+            torch.manual_seed(args.seed)
+            torch.cuda.manual_seed(args.seed)
+
+            n_training_points = N - args.test_points
+            n_steps = round(args.epochs * (2 * n_training_points / args.batch_size))
+            print(f"# of training steps: {n_steps}")
+
+            training_stats = create_stats_dict(args.num_runs)
+            i = 0
+            while i < args.num_runs:
+                # Model training
+                training_loss = {}
+                model = SIREN(3, 1, **netconfig).to(device)
+                print(model)
+                print("# parameters =", parameters_to_vector(model.parameters()).numel())
+                optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
+
+                # Start of the training loop
+                start_training_time = time.time()
+                for e in range(n_steps):
+                    training_pts, training_normals, training_sdf = \
+                        create_training_data(
+                            mesh,
+                            n_on_surf=round(args.batch_size * args.fraction_on_surface),
+                            on_surf_exceptions=test_surf_idx,
+                            n_off_surf=round(args.batch_size * (1 - args.fraction_on_surface)),
+                            domain_bounds=[min_bound, max_bound],
+                            scene=scene,
+                            no_sdf=False,
+                            use_curvature=False                        )
+
+                    training_pts = training_pts.to(device)
+                    training_normals = training_normals.to(device)
+                    training_sdf = training_sdf.to(device)
+
+                    gt = {
+                        "sdf": training_sdf.float().unsqueeze(1),
+                        "normals": training_normals.float(),
+                    }
+
+                    optim.zero_grad()
+
+                    y = model(training_pts)
+                    loss = true_sdf(y, gt)
+
+                    running_loss = torch.zeros((1, 1)).to(device)
+                    for k, v in loss.items():
+                        running_loss += v
+                        if k not in training_loss:
+                            training_loss[k] = [v.item()]
+                        else:
+                            training_loss[k].append(v.item())
+
+                    running_loss.backward()
+                    optim.step()
+
+                    if not e % 100 and e > 0:
+                        print(f"Step {e} --- Loss {running_loss.item()}")
+
+                training_time = time.time() - start_training_time
+                # fig, ax = plt.subplots(1)
+                # for k in training_loss:
+                #     ax.plot(list(range(N_STEPS)), training_loss[k], label=k)
+
+                # fig.legend()
+                # plt.savefig(f"loss_i3d_{current_mesh}.png")
+
+                model.eval().cpu()
+                n_i3d, curv_i3d = grad_sdf(test_surf_pts[..., :3], model)
+                with torch.no_grad():
+                    y_i3d = model(test_pts)["model_out"].squeeze()
+                    errs = torch.abs(test_sdf - y_i3d)
+                    errs_on_surf = errs[:test_surf_pts.shape[0]]
+                    errs_off_surf = errs[test_surf_pts.shape[0]:]
+
+                    errs_normals = 1 - F.cosine_similarity(
+                        test_normals[:test_surf_pts.shape[0], ...],
+                        n_i3d,
+                        dim=-1
+                    )
+
+                print(f"i3d Uniform Sampling Results:"
+                      f" MABSE {errs.mean():.3} -- MAXERR {errs.max().item():.3}")
+                print(f"Errors on surface --- "
+                      f"MABSE {errs_on_surf.mean():.3} -- MAXERR {errs_on_surf.max().item():.3}")
+                print(f"Errors off surface --- "
+                      f"MABSE {errs_off_surf.mean():.3} -- MAXERR {errs_off_surf.max().item():.3}")
+                print(f"Normal alignment errors --- MEAN {errs_normals.mean():.3}"
+                      f" --- MAX {errs_normals.max().item():.3}")
+
+                model.eval().cpu()
+                verts, faces, inference_time = run_marching_cubes(
+                    samples, model, args.resolution
+                )
+                print(f"Marching cubes inference time {inference_time:.3} s")
+                log_stats(
+                    training_stats, i, training_time, inference_time, errs,
+                    errs_on_surf, errs_off_surf, errs_normals
+                )
+
+                i += 1
+
+            save_ply(verts, faces, osp.join(results_path, "mc_i3duniform.ply"))
+            torch.save(
+                model.state_dict(), osp.join(results_path, "weights_i3uniformd.pth")
+            )
+            save_stats_dataframes(training_stats, "i3duniform", results_path)

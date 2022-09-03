@@ -60,8 +60,8 @@ class sdf_torus(torch.nn.Module):
 
 
 # From https://stackoverflow.com/questions/20708038/scipy-misc-derivative-for-multiple-argument-function
-def partial_function(f___,input,pos,value):
-    tmp  = input[pos]
+def partial_function(f___, input, pos, value):
+    tmp = input[pos]
     input[pos] = value
     ret = f___(input[None, ...])
     input[pos] = tmp
@@ -71,8 +71,8 @@ def partial_function(f___,input,pos,value):
 def partial_derivative(f, point):
     ret = np.empty(len(point))
     for i in range(len(point)):
-        fg = lambda x:partial_function(f, point, i, x)
-        ret[i] = nd.Derivative(fg, step=1e-6, order=3)(point[i])
+        ret[i] = nd.Derivative(lambda x: partial_function(f, point, i, x),
+                               step=1e-6, order=3)(point[i])
     return ret
 
 
