@@ -1,6 +1,6 @@
-.PHONY: all clean comparison_analytic comparison_ply_cuda comparison_ply train_release_models
+.PHONY: all clean comparison_analytic comparison_ply_cuda comparison_ply train_release_models viz_armadillo
 
-all: logs/double_torus/checkpoints/model_current_weights.bin
+all: viz_armadillo
 
 clean:
 	rm -Rf logs/double_torus/
@@ -57,5 +57,5 @@ data/lucy_simple_curvs.ply:
 results/armadillo_biased_curvatures_sdf/models/model_best.pth: data/armadillo_curvs.ply
 	python main.py experiments/armadillo_curvature_batch_sdf.json
 
-results/armadillo_biased_curvatures_sdf/models/model_best_biases.bin: results/armadillo_biased_curvatures_sdf/models/model_best.pth
-	python Shader-Neural-Implicits/tools/weights_biases_from_pth.py -f=results/armadillo_biased_curvatures_sdf/models/model_best.pth
+viz_armadillo: results/armadillo_biased_curvatures_sdf/models/model_best.pth
+	meshlab results/armadillo_biased_curvatures_sdf/reconstructions/model_best.ply

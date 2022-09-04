@@ -23,19 +23,19 @@ This is the official implementation of "Exploring Differential Geometry in Neura
 4. [MeshLab](https://www.meshlab.net/)
 
 ### Code organization
-* dataset.py - contains the sampling and data classes
-* diff_operators.py - implementation of differential operators (gradient, hessian, jacobian, curvatures)
-* loss_functions.py - contains loss functions for different experimental settings
-* main.py - main function and point-of-entry to our code
-* meshing.py - mesh creation through marching cubes
-* model.py - network and layers implementations
-* util.py - miscelaneous functions and utilities
+* `dataset.py` - contains the sampling and data classes
+* `diff_operators.py` - implementation of differential operators (gradient, hessian, jacobian, curvatures)
+* `loss_functions.py` - contains loss functions for different experimental settings
+* `main.py` - main function and point-of-entry to our code
+* `meshing.py` - mesh creation through marching cubes
+* `model.py` - network and layers implementations
+* `util.py` - miscelaneous functions and utilities
 
-Additionally, under the `experiment_scripts` folder, there are several scripts with experiments and other auxiliary code that is generally independent of the main code.
+Additionally, under the `experiment_scripts` folder, there are three scripts with experiments and other auxiliary code that is generally independent of the main code.
 
-* comparison\_analytic.py - comparison experiments of RBF, SIREN and our approach for analytic models of a sphere and torus
-* comparison\_ply.py - comparison experiments of RBF, SIREN and our approach for PLY models
-* mesh2sdf\_open3d\_performance_test.py - performance test using SDF querying implemented in mesh2sdf and open3d. _Not used in the paper_, only testing if it was worth replacing the sampling code implemented using mesh2sdf with open3d.
+* `comparison_analytic.py` - comparison experiments of RBF, SIREN and our approach for analytic models of a sphere and torus
+* `comparison_ply.py` - comparison experiments of RBF, SIREN and our approach for PLY models
+* `mesh2sdf_open3d_performance_test.py` - performance test using SDF querying implemented in mesh2sdf and open3d. _Not used in the paper_, only testing if it was worth replacing the sampling code implemented using mesh2sdf with open3d.
 
 In the `tools` folder, there are two scripts:
 
@@ -61,7 +61,7 @@ pip install -r requirements
 pip install -e .
 ```
 5. Download the datasets (available [here](https://drive.google.com/file/d/1MxG9nwiuCS6z9vo59NF93brw5DFYflMl/view?usp=sharing)) and extract them into the `data` folder of the repository
-6. Train a network for the armadillo:
+6. Train a network for the armadillo mesh:
 ```
 python main.py experiments/armadillo_curvature_batch_sdf.json
 ```
