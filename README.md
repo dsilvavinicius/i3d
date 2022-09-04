@@ -12,6 +12,8 @@
 
 This is the official implementation of "Exploring Differential Geometry in Neural Implicits".
 
+![Armadillo Curvatures](figs/armadillo_curvatures.png)
+
 ## Get started
 
 ### Prerequisites
