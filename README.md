@@ -68,7 +68,7 @@ python main.py experiments/armadillo_curvature_batch_sdf.json
 7. The results will be stored in `results/armadillo_biased_curvatures_sdf`.
 8. To visualize the output mesh by opening the output PLY using MeshLab:
 ```
-meshlab results/armadillo_biased_curvatures_sdf/reconstructions/best.ply
+meshlab results/armadillo_biased_curvatures_sdf/reconstructions/model_best.ply
 ```
 
 ### End Result
@@ -79,7 +79,7 @@ If everything works, MeshLab should show the following image (or an image simila
 
 ### Linux
 
-We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training (steps 5 and 6) above.
+We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training and visualization (steps 5 through 8) above.
 
 ### Running on a headless server
 
