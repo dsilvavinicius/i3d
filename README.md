@@ -37,6 +37,11 @@ Additionally, under the `experiment_scripts` folder, there are several scripts w
 * comparison\_ply.py - comparison experiments of RBF, SIREN and our approach for PLY models
 * mesh2sdf\_open3d\_performance_test.py - performance test using SDF querying implemented in mesh2sdf and open3d. _Not used in the paper_, only testing if it was worth replacing the sampling code implemented using mesh2sdf with open3d.
 
+In the `tools` folder, there are two scripts:
+
+* `estimate_mesh_curvatures.py`: Given a trained model (pth) and the original mesh, we estimate the vertex curvatures using the trained model.
+* `reconstruct.py`: Given a trained model (pth) reconstructs the mesh using marching cubes.
+
 ### Setup and sample run
 
 1. Open a terminal (or Git Bash if using Windows)
