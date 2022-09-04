@@ -1,48 +1,78 @@
-# High Order Derivative Learning for Graphics
+# Exploring Differential Geometry in Neural Implicits
 [Tiago Novello [1]](https://sites.google.com/site/tiagonovellodebrito),
+[Guilherme Schardong [3]](https://schardong.github.io/),
+[Luiz Schirmer [3]](https://www.lschirmer.com),
 [Vinícius da Silva [2]](https://dsilvavinicius.github.io/),
-[Guilherme Schardong [2]](https://schardong.github.io/),
-[Luiz Schirmer [2]](https://www.lschirmer.com),
 [Hélio Lopes [2]](http://www-di.inf.puc-rio.br/~lopes/),
 [Luiz Velho [1]](https://lvelho.impa.br/)
 <br>
 [1] Institute for Pure and Applied Mathematics (IMPA),
 [2] Pontifical Catholic University of Rio de Janeiro (PUC-Rio)
+[3] University of Coimbra (UC)
 
-This is the official implementation of "Differential Geometry for Neural Implicit Models".
+This is the official implementation of "Exploring Differential Geometry in Neural Implicits".
 
-## Get started: the Double Torus Toy Example
+## Get started
 
-### Windows
+### Prerequisites
+1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems.
+2. [Git](https://git-scm.com/download).
+3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473) (If on Windows).
+4. [MeshLab](https://www.meshlab.net/)
 
-#### Prerequisites
+### Code organization
+* dataset.py - contains the sampling and data classes
+* diff_operators.py - implementation of differential operators (gradient, hessian, jacobian, curvatures)
+* loss_functions.py - contains loss functions for different experimental settings
+* main.py - main function and point-of-entry to our code
+* meshing.py - mesh creation through marching cubes
+* model.py - network and layers implementations
+* util.py - miscelaneous functions and utilities
 
-1. [Anaconda](https://www.anaconda.com/products/individual#Downloads).
-2. [Git](https://git-scm.com/download/win).
-3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473).
-4. [SHADERed](https://shadered.org/).
+Additionally, under the `experiment_scripts` folder, there are several scripts with experiments and other auxiliary code that is generally independent of the main code.
 
-#### Setup (all folders are relative to the clone root)
+* comparison\_analytic.py - comparison experiments of RBF, SIREN and our approach for analytic models of a sphere and torus
+* comparison\_ply.py - comparison experiments of RBF, SIREN and our approach for PLY models
+* mesh2sdf\_open3d\_performance_test.py - performance test using SDF querying implemented in mesh2sdf and open3d. _Not used in the paper_, only testing if it was worth replacing the sampling code implemented using mesh2sdf with open3d.
 
-1. Open Git Bash
-2. Clone the repository: `git clone --recurse-submodules git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git`.
-3. Enter project folder: `cd high_order_derivative_learning_for_graphics`.
-4. Setup project dependencies:
+### Setup and sample run
+
+1. Open a terminal (or Git Bash if using Windows)
+2. Clone the repository: `git clone --recurse-submodules git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git i3d`.
+3. Enter project folder: `cd i3d`.
+4. Create the environment and setup project dependencies:
 ```
 conda env create -f environment.yml
-conda activate hodl
+conda activate i3d
+pip install -e .
 ```
-5. Download the [Double Torus Mesh](https://drive.google.com/file/d/11PkscMHBUkkENhHfI1lpH5Dh6X9f2028/view?usp=sharing) into the `data` folder in the repository.
-6. Run the double torus toy example script: `./tools/double_torus/double_torus_toy_example.sh`. This script preprocesses the mesh using `tools/preprocess_double_torus.sh`, trains the model using `train_double_torus.sh` and creates the binary neural network files to be loaded in shaders using `double_torus_pth2bin.sh`.
-7. The resulting binary neural network files will be `logs/double_torus/checkpoints/model_current_biases.bin`, and `model_current_weights.bin`.
-8. Open SHADERed.
-9. `File -> Open` and select the SHADERed project file `Shader-Neural-Implicits/NeuralImplicits.sprj`.
-10. Load The binary network weights: `Objects -> weights -> LOAD RAW DATA` and select the file `logs/double_torus/checkpoints/model_current_weights.bin`.
-11. Load The binary network biases: `Objects -> biases -> LOAD RAW DATA` and select the file `logs/double_torus/checkpoints/model_current_biases.bin`.
+or, if using pyenv (with pyenv-virtualenv):
+```
+pyenv virtualenv 3.9.9 i3d
+pyenv local i3d
+pip install -r requirements
+pip install -e .
+```
+5. Download the datasets (available [here](https://drive.google.com/file/d/1MxG9nwiuCS6z9vo59NF93brw5DFYflMl/view?usp=sharing)) and extract them into the `data` folder of the repository
+6. Train a network for the armadillo:
+```
+python main.py experiments/armadillo_curvature_batch_sdf.json
+```
+7. The results will be stored in `results/armadillo_biased_curvatures_sdf`.
+8. To visualize the output mesh by opening the output PLY using MeshLab:
+```
+meshlab results/armadillo_biased_curvatures_sdf/reconstructions/best.ply
+```
+
+### End Result
+
+If everything works, MeshLab should show the following image (or an image similar to it):
+
+![Armadillo](figs/armadillo.png "Armadillo")
 
 ### Linux
 
-We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the running of all scripts on step 6, defined above.
+We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training (steps 5 and 6) above.
 
 ### Running on a headless server
 
@@ -51,12 +81,6 @@ If you are training your model in a remote server with no graphical environment,
 ```{sh}
 xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.json
 ```
-
-### End Result
-
-If everything works, SHADERed should show the following image:
-
-![Double Torus](figs/double_torus.png "Double Torus")
 
 ## Citation
 If you find our work useful in your research, please cite:
