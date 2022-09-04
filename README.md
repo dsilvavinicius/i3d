@@ -7,7 +7,7 @@
 [Luiz Velho [1]](https://lvelho.impa.br/)
 <br>
 [1] Institute for Pure and Applied Mathematics (IMPA),
-[2] Pontifical Catholic University of Rio de Janeiro (PUC-Rio)
+[2] Pontifical Catholic University of Rio de Janeiro (PUC-Rio),
 [3] University of Coimbra (UC)
 
 This is the official implementation of "Exploring Differential Geometry in Neural Implicits".
@@ -38,7 +38,7 @@ Additionally, under the `experiment_scripts` folder, there are several scripts w
 ### Setup and sample run
 
 1. Open a terminal (or Git Bash if using Windows)
-2. Clone the repository: `git clone --recurse-submodules git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git i3d`.
+2. Clone the repository: `git clone git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git i3d`.
 3. Enter project folder: `cd i3d`.
 4. Create the environment and setup project dependencies:
 ```
@@ -85,20 +85,15 @@ xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.jso
 ## Citation
 If you find our work useful in your research, please cite:
 ```
-@ARTICLE{2022arXiv220109263N,
-       author = {{Novello}, Tiago and {Schardong}, Guilherme and {Schirmer}, Luiz and {da Silva}, Vinicius and {Lopes}, Helio and {Velho}, Luiz},
-        title = "{Differential Geometry for Neural Implicit Models}",
-      journal = {arXiv e-prints},
-     keywords = {Computer Science - Graphics, Computer Science - Machine Learning},
-         year = 2022,
-        month = jan,
-          eid = {arXiv:2201.09263},
-        pages = {arXiv:2201.09263},
-archivePrefix = {arXiv},
-       eprint = {2201.09263},
- primaryClass = {cs.GR},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2022arXiv220109263N},
-      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+@misc{novello:i3d:2022,
+  doi = {10.48550/ARXIV.2201.09263},
+  url = {https://arxiv.org/abs/2201.09263},
+  author = {Novello, Tiago and Schardong, Guilherme and Schirmer, Luiz and da Silva, Vinicius and Lopes, Helio and Velho, Luiz},
+  keywords = {Graphics (cs.GR), Machine Learning (cs.LG), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  title = {Exploring Differential Geometry in Neural Implicits},
+  publisher = {arXiv},
+  year = {2022},
+  copyright = {Creative Commons Attribution 4.0 International}
 }
 ```
 
