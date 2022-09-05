@@ -6,13 +6,11 @@ Script to calculate the mesh curvatures given an implicit representation
 of it.
 """
 
-import os.path as osp
 import open3d as o3d
 import numpy as np
 import torch
 import diff_operators
-from model import SIREN
-from util import siren_v1_to_v2, from_pth
+from util import from_pth
 from meshing import save_ply
 
 
