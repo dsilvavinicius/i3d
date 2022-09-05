@@ -196,9 +196,6 @@ def principal_directions_sdf(model_output, gt):
 
     dirs_constraint = dirs_constraint + 0.1*aux_dirs_constraint
 
-   #removing umbilical points of the pred sdf
-    #dirs_constraint = torch.where(pred_dirs[0][...,3].unsqueeze(-1) == 0, dirs_constraint, torch.zeros_like(dirs_constraint))
-
     #removing problematic curvatures and planar points
     planar_curvature = 0.5*torch.abs(gt_min_curvature-gt_max_curvature)
     dirs_constraint = torch.where(planar_curvature > 10  , dirs_constraint, torch.zeros_like(dirs_constraint))
