@@ -210,8 +210,8 @@ def principal_directions_sdf(model_output, gt):
     }
 
 
-def gaussian_curvature_sdf(model_output, gt):
-    """Uses true SDF value off surface and tries to fit the gaussian curvatures
+def mean_curvature_sdf(model_output, gt):
+    """Uses true SDF value off surface and tries to fit the mean curvatures
     on the 0 level-set.
 
     Parameters
