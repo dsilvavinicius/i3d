@@ -58,6 +58,13 @@ class SIREN(nn.Module):
         Frequency multiplier for the hidden Sine layers. Only useful for
         training the model. Default value is None.
 
+    delay_init: boolean, optional
+        Indicates if we should perform the weight initialization or not.
+        Default value is False, meaning that we perform the weight
+        initialization as usual. This is useful if we will load the weights of
+        a pre-trained network, in this case, initializing the weights does not
+        make sense, since they will be overwritten.
+
     References
     ----------
     [1] Sitzmann, V., Martel, J. N. P., Bergman, A. W., Lindell, D. B.,
@@ -65,7 +72,7 @@ class SIREN(nn.Module):
     Activation Functions. ArXiv. http://arxiv.org/abs/2006.09661
     """
     def __init__(self, n_in_features, n_out_features, hidden_layer_config=[],
-                 w0=30, ww=None):
+                 w0=30, ww=None, delay_init=False):
         super().__init__()
         self.w0 = w0
         if ww is None:
@@ -90,8 +97,9 @@ class SIREN(nn.Module):
         ))
 
         self.net = nn.Sequential(*net)
-        self.net[0].apply(first_layer_sine_init)
-        self.net[1:].apply(lambda module: sine_init(module, self.ww))
+        if not delay_init:
+            self.net[0].apply(first_layer_sine_init)
+            self.net[1:].apply(lambda module: sine_init(module, self.ww))
 
     def forward(self, x):
         """Forward pass of the model.

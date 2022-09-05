@@ -3,22 +3,25 @@
 from collections import OrderedDict
 import json
 import os
+import os.path as osp
 import shutil
 import logging
+import torch
+from model import SIREN
 
 
 def create_output_paths(checkpoint_path, experiment_name, overwrite=True):
     """Helper function to create the output folders. Returns the resulting path.
     """
-    full_path = os.path.join(".", checkpoint_path, experiment_name)
-    if os.path.exists(full_path) and overwrite:
+    full_path = osp.join(".", checkpoint_path, experiment_name)
+    if osp.exists(full_path) and overwrite:
         shutil.rmtree(full_path)
-    elif os.path.exists(full_path):
+    elif osp.exists(full_path):
         logging.warning("Output path exists. Not overwritting.")
         return full_path
 
-    os.makedirs(os.path.join(full_path, "models"))
-    os.makedirs(os.path.join(full_path, "reconstructions"))
+    os.makedirs(osp.join(full_path, "models"))
+    os.makedirs(osp.join(full_path, "reconstructions"))
     return full_path
 
 
@@ -73,7 +76,7 @@ def siren_v1_to_v2(model_in, check_equals=False):
     return model_out, divergences
 
 
-def from_pth(path, device="cpu", w0=None, ww=None):
+def from_pth(path, device="cpu", w0=1, ww=None):
     """Builds a SIREN given a weights file.
 
     Parameters
@@ -83,6 +86,13 @@ def from_pth(path, device="cpu", w0=None, ww=None):
 
     device: str, optional
         Device to load the weights. Default value is cpu.
+
+    w0: number, optional
+        Frequency parameter for the first layer. Default value is 1.
+
+    ww: number, optional
+        Frequency parameter for the intermediate layers. Default value is None,
+        we will assume that ww = w0 in this case.
 
     Returns
     -------
@@ -115,7 +125,7 @@ def from_pth(path, device="cpu", w0=None, ww=None):
         n_in_features=n_in_features,
         n_out_features=n_out_features,
         hidden_layer_config=hidden_layer_config,
-        w0=w0, ww=ww
+        w0=w0, ww=ww, delay_init=True
     )
 
     # Loads the weights. Converts to version 2 if they are from the old version
