@@ -7,12 +7,10 @@ and a set of checkpoints.
 """
 
 import argparse
-import json
 import os
 import os.path as osp
-import torch
 from meshing import create_mesh
-from model import SIREN
+from util import from_pth
 
 
 if __name__ == "__main__":
@@ -20,57 +18,35 @@ if __name__ == "__main__":
         description="Run marching cubes using a trained model."
     )
     parser.add_argument(
-        "experiment_path",
-        help="Path to the JSON experiment description file"
+        "model_path",
+        help="Path to the PyTorch weights file"
     )
     parser.add_argument(
-        "--checkpoints", "-c", nargs="+", default=["final"],
-        help="Checkpoints to use when reconstructing the model."
+        "output_path",
+        help="Path to the output mesh file"
     )
     parser.add_argument(
-        "--resolution", "-r", default=0, type=int,
-        help="Resolution to use on marching cubes. Overrides the one in the experiments file."
+        "w0", type=int, default=30,
+        help="Value for \\omega_0."
+    )
+    parser.add_argument(
+        "--resolution", "-r", default=128, type=int,
+        help="Resolution to use on marching cubes."
     )
 
     args = parser.parse_args()
-    with open(args.experiment_path, "r") as fin:
-        params = json.load(fin)
+    out_dir = osp.split(args.output_path)[0]
+    if out_dir and not osp.exists(out_dir):
+        os.makedirs(out_dir)
 
-    base_path = osp.join(params["checkpoint_path"], params["experiment_name"])
-    model_path = osp.join(base_path, "models")
-    dest_path = osp.join(base_path, "reconstructions")
+    model = from_pth(args.model_path, w0=args.w0).eval()
+    print(model)
+    print(f"Running marching cubes running with resolution {args.resolution}")
 
-    if not osp.exists(dest_path):
-        os.makedirs(dest_path)
-
-    reconstruction_opts = params.get("reconstruction", {})
-    resolution = reconstruction_opts.get("resolution", 128)
-    if args.resolution:
-        resolution = args.resolution
-
-    model = SIREN(
-        n_in_features=3,
-        n_out_features=1,
-        hidden_layer_config=params["network"]["hidden_layer_nodes"],
-        w0=params["network"]["w0"],
-        ww=params["network"].get("ww", None)
+    create_mesh(
+        model,
+        args.output_path,
+        N=args.resolution
     )
-
-    for c in args.checkpoints:
-        print(f"Marching cubes running for checkpoint \"{c}\"")
-
-        checkpoint_file = osp.join(model_path, f"model_{c}.pth")
-        if not osp.exists(checkpoint_file):
-            print(f"Checkpoint file model_{c}.pth does not exist. Skipping")
-            continue
-
-        model.load_state_dict(
-            torch.load(checkpoint_file)
-        )
-        create_mesh(
-            model,
-            osp.join(dest_path, f"{c}.ply"),
-            N=resolution
-        )
 
     print("Done")
