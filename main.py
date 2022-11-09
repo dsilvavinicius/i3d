@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from dataset import PointCloud
-from loss_functions import sdf_sitzmann, true_sdf_curvature, true_sdf
+from loss_functions import sdf_sitzmann, mean_curvature_sdf, true_sdf
 from meshing import create_mesh
 from model import SIREN
 from util import create_output_paths, load_experiment_parameters
