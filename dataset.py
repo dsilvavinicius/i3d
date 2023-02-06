@@ -259,8 +259,16 @@ def _create_training_data(
     Returns
     -------
     full_pts: torch.Tensor
+        A tensor with the points sampled from the surface concatenated with the
+        off-surface points.
+
     full_normals: torch.Tensor
+        Tensor with the normals of points sampled from the surface concatenated
+        with a tensor of zeroes, shaped  (`n_off_surf`, 3), since we don't
+        calculate normals for off-surface points.
+
     full_sdf: torch.Tensor
+        Tensor with the SDF values of on and off surface points.
 
     See Also
     --------
@@ -287,16 +295,14 @@ def _create_training_data(
         (n_off_surf, 3)
     )
 
-    if not no_sdf:
+    if no_sdf:
+        domain_pts = torch.from_numpy(domain_pts)
+        domain_sdf = -1 * torch.ones(domain_pts.shape[0])
+    else:
         domain_pts = o3c.Tensor(domain_pts, dtype=o3c.Dtype.Float32)
         domain_sdf = scene.compute_signed_distance(domain_pts)
         domain_sdf = torch.from_numpy(domain_sdf.numpy())
         domain_pts = torch.from_numpy(domain_pts.numpy())
-    else:
-        domain_pts = torch.from_numpy(domain_pts)
-        domain_sdf = -1 * torch.ones(domain_pts.shape[0])
-
-    domain_normals = torch.zeros_like(domain_pts)
 
     full_pts = torch.row_stack((
         surf_pts[..., :3],
@@ -304,7 +310,7 @@ def _create_training_data(
     ))
     full_normals = torch.row_stack((
         surf_pts[..., 3:6],
-        domain_normals
+        torch.zeros_like(domain_pts)
     ))
     full_sdf = torch.cat((
         torch.zeros(len(surf_pts)),
