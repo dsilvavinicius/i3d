@@ -36,6 +36,7 @@ Additionally, under the `experiment_scripts` folder, there are three scripts wit
 * `comparison_analytic.py` - comparison experiments of RBF, SIREN and our approach for analytic models of a sphere and torus
 * `comparison_ply.py` - comparison experiments of RBF, SIREN and our approach for PLY models
 * `mesh2sdf_open3d_performance_test.py` - performance test using SDF querying implemented in mesh2sdf and open3d. _Not used in the paper_, only testing if it was worth replacing the sampling code implemented using mesh2sdf with open3d.
+* `sdf_for_n_iters.py` - Experiments with intermitent querying of off-surface points. Both to speed-up the training and test the influence of generating the off-surface points at each iteration.
 
 In the `tools` folder, there are two scripts:
 

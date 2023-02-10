@@ -43,8 +43,8 @@ def curvature_segmentation(
 
     bin_edges: torch.Tensor
         The [minimum, low-medium threshold, medium-high threshold, maximum]
-        curvature values in `vertices`. These values define thresholds between low
-        and medium curvature values, and medium to high curvatures.
+        curvature values in `vertices`. These values define thresholds between
+        low and medium curvature values, and medium to high curvatures.
 
     proportions: torch.Tensor
         The percentage of points to fetch for each curvature band per batch of
@@ -291,7 +291,7 @@ def read_ply(
                                                dtype=o3c.float32)
     mesh.triangle["indices"] = o3c.Tensor(faces, dtype=o3c.int32)
 
-    return mesh, torch.from_numpy(vertices)
+    return mesh, torch.from_numpy(vertices).requires_grad_(False)
 
 
 if __name__ == "__main__":
@@ -301,12 +301,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Experiments with SDF querying at regular intervals."
     )
-    parser.add_argument("meshpath", help="Path to the mesh to use for training. We only handle PLY files for now.")
-    parser.add_argument("outputpath", help="Path to the output folder. This directory will be created if non-existant.")
-    parser.add_argument("configpath", help="Path to the configuration file with the network's description.")
+    parser.add_argument(
+        "meshpath",
+        help="Path to the mesh to use for training. We only handle PLY files."
+    )
+    parser.add_argument(
+        "outputpath",
+        help="Path to the output folder (will be created if necessary)."
+    )
+    parser.add_argument(
+        "configpath",
+        help="Path to the configuration file with the network's description."
+    )
     parser.add_argument(
         "--device", "-d", type=str, default="cuda:0",
-        help="The device to perform the training on. By default its the CUDA:0 device."
+        help="The device to perform the training on. Uses CUDA:0 by default."
     )
     parser.add_argument(
         "--nsteps", "-n", type=int, default=0,
@@ -357,6 +366,7 @@ if __name__ == "__main__":
     nsteps = round(EPOCHS * (2 * N / BATCH))
     refresh_sdf_nsteps = max(1, round(REFRESH_SDF_AT_PERC_STEPS * nsteps))
     print(f"Refresh SDF at every {refresh_sdf_nsteps} training steps")
+    print(f"Total # of training steps = {nsteps}")
 
     min_bound = np.array([-1, -1, -1])
     max_bound = np.array([1, 1, 1])
@@ -378,7 +388,6 @@ if __name__ == "__main__":
     print("# parameters =", parameters_to_vector(model.parameters()).numel())
     optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
     training_loss = {}
-    print(f"Total # of training steps = {nsteps}")
 
     off_surf_samples = None
 
@@ -443,7 +452,7 @@ if __name__ == "__main__":
 
         trainingpts[:nonsurf, ...] = samples["on_surf"][0]
         trainingnormals[:nonsurf, ...] = samples["on_surf"][1]
-        trainingsdf[:nonsurf, ...] = samples["on_surf"][2]
+        trainingsdf[:nonsurf] = samples["on_surf"][2]
 
         gt = {
             "sdf": trainingsdf.float().unsqueeze(1),
