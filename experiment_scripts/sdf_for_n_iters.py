@@ -445,19 +445,6 @@ if __name__ == "__main__":
         trainingnormals[:nonsurf, ...] = samples["on_surf"][1]
         trainingsdf[:nonsurf, ...] = samples["on_surf"][2]
 
-        #training_pts = torch.row_stack((
-         #   samples["on_surf"][0],
-         #   off_surf_samples[0],
-        #))
-        #training_normals = torch.row_stack((
-        #    samples["on_surf"][1],
-        #    off_surf_samples[1],
-        #))
-        #training_sdf = torch.cat((
-         #   samples["on_surf"][2],
-         #   off_surf_samples[2]
-        #))
-
         gt = {
             "sdf": trainingsdf.float().unsqueeze(1),
             "normals": trainingnormals.float(),
