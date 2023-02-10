@@ -22,56 +22,6 @@ from loss_functions import true_sdf
 from model import SIREN
 
 
-NETCONFIG_MAP = {
-    "armadillo": {
-        "hidden_layer_config": [256, 256, 256],
-        "w0": 60,
-        "ww": None,
-    },
-    "happy_buddha": {
-        "hidden_layer_config": [256, 256, 256, 256],
-        "w0": 60,
-        "ww": None,
-    },
-    "lucy": {
-        "hidden_layer_config": [256, 256, 256, 256],
-        "w0": 60,
-        "ww": None,
-    },
-    "bunny": {
-        "hidden_layer_config": [256, 256, 256],
-        "w0": 30,
-        "ww": None,
-    },
-    "dragon": {
-        "hidden_layer_config": [256, 256, 256],
-        "w0": 30,
-        "ww": None,
-    },
-    "statue": {
-        "hidden_layer_config": [512, 512, 512, 512],
-        "w0": 80,
-        "ww": None,
-    },
-    "default": {
-        "hidden_layer_config": [256, 256, 256],
-        "w0": 30,
-        "ww": None,
-    }
-}
-
-
-MESH_MAP = {
-    "armadillo": osp.join("data", "armadillo_curvs.ply"),
-    "bunny": osp.join("data", "bunny_curvs.ply"),
-    "happy_buddha": osp.join("data", "happy_buddha_curvs.ply"),
-    "dragon": osp.join("data", "dragon_curvs.ply"),
-    "lucy": osp.join("data", "lucy_simple_curvs.ply"),
-    "statue": osp.join("data", "statue.ply"),
-    "cad0": osp.join("data", "cc0.ply"),
-}
-
-
 def curvature_segmentation(
     vertices: torch.Tensor,
     n_samples: int,
@@ -450,14 +400,21 @@ if __name__ == "__main__":
         curvature_fracs = samplingcfg["curvature_fractions"]
 
     # Training loop
+
+    trainingpts = torch.zeros((BATCH, 3), device=device)
+    trainingnormals = torch.zeros((BATCH, 3), device=device)
+    trainingsdf = torch.zeros((BATCH), device=device)
+    nonsurf = round(BATCH * 0.5)
+    noffsurf = round(BATCH * 0.5)
+
     start_training_time = time.time()
     for e in range(nsteps):
         if not e % refresh_sdf_nsteps:
             # We will recalculate the SDF points at this # of steps
             samples = create_training_data(
                 vertices,
-                n_on_surf=round(BATCH * 0.5),
-                n_off_surf=round(BATCH * 0.5),
+                n_on_surf=nonsurf,
+                n_off_surf=noffsurf,
                 domain_bounds=[min_bound, max_bound],
                 scene=scene,
                 device=device,
@@ -467,10 +424,14 @@ if __name__ == "__main__":
             )
             off_surf_samples = samples["off_surf"]
             off_surf_samples = [v.to(device) for v in off_surf_samples]
+
+            trainingpts[noffsurf:, ...] = off_surf_samples[0]
+            trainingnormals[noffsurf:, ...] = off_surf_samples[1]
+            trainingsdf[noffsurf:, ...] = off_surf_samples[2]
         else:
             samples = create_training_data(
                 vertices,
-                n_on_surf=round(BATCH * 0.5),
+                n_on_surf=nonsurf,
                 n_off_surf=0,
                 domain_bounds=[min_bound, max_bound],
                 scene=scene,
@@ -480,26 +441,30 @@ if __name__ == "__main__":
                 curvature_threshs=curvature_threshs
             )
 
-        training_pts = torch.row_stack((
-            samples["on_surf"][0],
-            off_surf_samples[0],
-        ))
-        training_normals = torch.row_stack((
-            samples["on_surf"][1],
-            off_surf_samples[1],
-        ))
-        training_sdf = torch.cat((
-            samples["on_surf"][2],
-            off_surf_samples[2]
-        ))
+        trainingpts[:nonsurf, ...] = samples["on_surf"][0]
+        trainingnormals[:nonsurf, ...] = samples["on_surf"][1]
+        trainingsdf[:nonsurf, ...] = samples["on_surf"][2]
+
+        #training_pts = torch.row_stack((
+         #   samples["on_surf"][0],
+         #   off_surf_samples[0],
+        #))
+        #training_normals = torch.row_stack((
+        #    samples["on_surf"][1],
+        #    off_surf_samples[1],
+        #))
+        #training_sdf = torch.cat((
+         #   samples["on_surf"][2],
+         #   off_surf_samples[2]
+        #))
 
         gt = {
-            "sdf": training_sdf.float().unsqueeze(1),
-            "normals": training_normals.float(),
+            "sdf": trainingsdf.float().unsqueeze(1),
+            "normals": trainingnormals.float(),
         }
 
         optim.zero_grad(set_to_none=True)
-        y = model(training_pts)
+        y = model(trainingpts)
         loss = true_sdf(y, gt)
 
         running_loss = torch.zeros((1, 1), device=device)
