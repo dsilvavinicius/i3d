@@ -6,23 +6,25 @@ Experiments with calculating the SDF for a batch of points and reusing it for N
 iterations.
 """
 
+import argparse
 import math
 import os
 import os.path as osp
 import time
+import yaml
 import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 from plyfile import PlyData
 import torch
-# from torch.profiler import profile, record_function, ProfilerActivity
+from torch.nn.utils import parameters_to_vector
 from loss_functions import true_sdf
 from model import SIREN
 
 
 NETCONFIG_MAP = {
     "armadillo": {
-        "hidden_layer_config": [256, 256, 256, 256],
+        "hidden_layer_config": [256, 256, 256],
         "w0": 60,
         "ww": None,
     },
@@ -46,6 +48,11 @@ NETCONFIG_MAP = {
         "w0": 30,
         "ww": None,
     },
+    "statue": {
+        "hidden_layer_config": [512, 512, 512, 512],
+        "w0": 80,
+        "ww": None,
+    },
     "default": {
         "hidden_layer_config": [256, 256, 256],
         "w0": 30,
@@ -60,57 +67,58 @@ MESH_MAP = {
     "happy_buddha": osp.join("data", "happy_buddha_curvs.ply"),
     "dragon": osp.join("data", "dragon_curvs.ply"),
     "lucy": osp.join("data", "lucy_simple_curvs.ply"),
+    "statue": osp.join("data", "statue.ply"),
     "cad0": osp.join("data", "cc0.ply"),
 }
 
 
 def curvature_segmentation(
-    vertices: torch.tensor,
+    vertices: torch.Tensor,
     n_samples: int,
     bin_edges: np.array,
     proportions: np.array,
+    device: str
 ):
-    idx = torch.randperm(vertices.shape[0], device=device)
-    shuffled_vertices = vertices[idx, ...]
-    curvatures = shuffled_vertices[..., -2]
+    """Samples `n_samples` from `vertices` based on their curvatures. Each
+    sample is a row of `vertices`.
 
-    n_low_curvature = int(math.floor(proportions[0] * n_samples))
-    low_curvature_pts = shuffled_vertices[(curvatures >= bin_edges[0]) & (curvatures < bin_edges[1]), ...]
+    Parameters
+    ----------
+    vertices: torch.Tensor
+        The vertices to sample. Note that each row is a vertex and the
+        curvatures must be stored in the second-to-last column of `vertices`.
 
-    n_med_curvature = int(math.ceil(proportions[1] * n_samples))
-    med_curvature_pts = shuffled_vertices[(curvatures >= bin_edges[1]) & (curvatures < bin_edges[2]), ...]
+    n_samples: int
+        The number of items to fetch from `vertices`.
 
-    n_high_curvature = n_samples - (n_low_curvature + n_med_curvature)
-    high_curvature_pts = shuffled_vertices[(curvatures >= bin_edges[2]) & (curvatures <= bin_edges[3]), ...]
+    bin_edges: torch.Tensor
+        The [minimum, low-medium threshold, medium-high threshold, maximum]
+        curvature values in `vertices`. These values define thresholds between low
+        and medium curvature values, and medium to high curvatures.
 
-    ret = torch.row_stack((
-        low_curvature_pts[:n_low_curvature, ...],
-        med_curvature_pts[:n_med_curvature, ...],
-        high_curvature_pts[:n_high_curvature, ...]
-    ))
+    proportions: torch.Tensor
+        The percentage of points to fetch for each curvature band per batch of
+        `n_samples`.
 
-    return ret
-
-
-def curvature_segmentation2(
-    vertices: torch.tensor,
-    n_samples: int,
-    bin_edges: np.array,
-    proportions: np.array,
-):
+    Returns
+    -------
+    samples: torch.Tensor
+        The sampled vertices.
+    """
     curvatures = vertices[..., -2]
 
-    low_curvature_pts = vertices[(curvatures >= bin_edges[0]) & (curvatures < bin_edges[1]), ...]
+    # TODO: Da pra fazer na inicialização
+    low_curvature_pts = vertices[curvatures < bin_edges[1], ...]
     med_curvature_pts = vertices[(curvatures >= bin_edges[1]) & (curvatures < bin_edges[2]), ...]
-    high_curvature_pts = vertices[(curvatures >= bin_edges[2]) & (curvatures <= bin_edges[3]), ...]
+    high_curvature_pts = vertices[curvatures >= bin_edges[2], ...]
 
     n_low_curvature = int(math.floor(proportions[0] * n_samples))
     n_med_curvature = int(math.ceil(proportions[1] * n_samples))
     n_high_curvature = n_samples - (n_low_curvature + n_med_curvature)
 
-    low_idx = torch.randperm(low_curvature_pts.shape[0])[n_low_curvature]
-    med_idx = torch.randperm(med_curvature_pts.shape[0])[n_med_curvature]
-    high_idx = torch.randperm(high_curvature_pts.shape[0])[n_high_curvature]
+    low_idx = torch.randperm(low_curvature_pts.shape[0], device=device)[:n_low_curvature]
+    med_idx = torch.randperm(med_curvature_pts.shape[0], device=device)[:n_med_curvature]
+    high_idx = torch.randperm(high_curvature_pts.shape[0], device=device)[:n_high_curvature]
 
     ret = torch.row_stack((
         low_curvature_pts[low_idx, ...],
@@ -121,13 +129,17 @@ def curvature_segmentation2(
     return ret
 
 
-def sample_on_surface(vertices, n_points, device):
+def sample_on_surface(
+        vertices: torch.Tensor,
+        n_points: int,
+        device: str
+):
     """Samples points in a torch tensor
 
     Parameters
     ----------
-    vertices: torch.tensor
-        A mode-2 tensor where each row is a point
+    vertices: torch.Tensor
+        A mode-2 tensor where each row is a vertex.
 
     n_points: int
         The number of points to sample. If `n_points` == `vertices.shape[0]`,
@@ -152,8 +164,8 @@ def sample_on_surface(vertices, n_points, device):
     """
     if n_points == vertices.shape[0]:
         return vertices, torch.arange(end=n_points, step=1, device=device)
-    idx = torch.randperm(n_points, device=device)
-    sampled = vertices[idx]
+    idx = torch.randperm(vertices.shape[0], device=device)[:n_points]
+    sampled = vertices[idx, ...]
     return sampled, idx
 
 
@@ -224,8 +236,9 @@ def create_training_data(
     sample_on_surface, curvature_segmentation
     """
     if use_curvature:
-        surf_pts = curvature_segmentation2(
-            vertices, n_on_surf, curvature_threshs, curvature_fracs
+        surf_pts = curvature_segmentation(
+            vertices, n_on_surf, curvature_threshs, curvature_fracs,
+            device=device
         )
     else:
         surf_pts, _ = sample_on_surface(
@@ -314,7 +327,7 @@ def read_ply(
         vertices[:, 4] = plydata["vertex"].data["ny"]
         vertices[:, 5] = plydata["vertex"].data["nz"]
         if with_curvatures:
-            vertices[:, 6] = plydata["vertex"].data["quality"]
+            vertices[:, 6] = np.abs(plydata["vertex"].data["quality"])
 
         faces = np.stack(plydata["face"].data["vertex_indices"])
 
@@ -324,7 +337,7 @@ def read_ply(
     mesh.vertex["positions"] = o3c.Tensor(vertices[:, :3], dtype=o3c.float32)
     mesh.vertex["normals"] = o3c.Tensor(vertices[:, 3:6], dtype=o3c.float32)
     if with_curvatures:
-        mesh.vertex["curvatures"] = o3c.Tensor(vertices[:, -1],
+        mesh.vertex["curvatures"] = o3c.Tensor(vertices[:, -2],
                                                dtype=o3c.float32)
     mesh.triangle["indices"] = o3c.Tensor(faces, dtype=o3c.int32)
 
@@ -335,70 +348,110 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+    parser = argparse.ArgumentParser(
+        description="Experiments with SDF querying at regular intervals."
+    )
+    parser.add_argument("meshpath", help="Path to the mesh to use for training. We only handle PLY files for now.")
+    parser.add_argument("outputpath", help="Path to the output folder. This directory will be created if non-existant.")
+    parser.add_argument("configpath", help="Path to the configuration file with the network's description.")
+    parser.add_argument(
+        "--device", "-d", type=str, default="cuda:0",
+        help="The device to perform the training on. By default its the CUDA:0 device."
+    )
+    parser.add_argument(
+        "--nsteps", "-n", type=int, default=0,
+        help="Number of training steps for each mesh."
+    )
+    args = parser.parse_args()
+
+    if not osp.exists(args.configpath):
+        raise FileNotFoundError(
+            f"Experiment configuration file \"{args.configpath}\" not found."
+        )
+
+    if not osp.exists(args.meshpath):
+        raise FileNotFoundError(
+            f"Mesh file \"{args.meshpath}\" not found."
+        )
+
+    with open(args.configpath, "r") as fin:
+        config = yaml.safe_load(fin)
+
+    print(f"Saving results in {args.outputpath}")
+    if not osp.exists(args.outputpath):
+        os.makedirs(args.outputpath)
+
+    trainingcfg = config["training"]
     SEED = 668123
-    MESH = "armadillo"
-    EPOCHS = 100
-    BATCH = 20000
-    MCRESOLUTION = 128
-    REFRESH_SDF_AT_PERC_STEPS = 0.2
-    RESULTPATH = f"results/{MESH}_sdf_perf_refresh-perc-{REFRESH_SDF_AT_PERC_STEPS * 100}"
+    EPOCHS = trainingcfg["epochs"]
+    BATCH = trainingcfg["batchsize"]
+    REFRESH_SDF_AT_PERC_STEPS = trainingcfg["resample_sdf_at"] / trainingcfg["epochs"]
 
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
 
-    device = torch.device("cuda:0")
+    devstr = args.device
+    if "cuda" in devstr and not torch.cuda.is_available():
+        devstr = "cpu"
+        print("No CUDA available devices found on system. Using CPU.")
 
-    if not osp.exists(RESULTPATH):
-        os.makedirs(RESULTPATH)
+    device = torch.device(devstr)
 
-    mesh_data = MESH_MAP[MESH]
-    mesh, vertices = read_ply(mesh_data, with_curvatures=False)
+    samplingcfg = config.get("sampling", None)
+    withcurvature = samplingcfg is not None and samplingcfg["type"] == "curvature"
+
+    mesh, vertices = read_ply(args.meshpath, with_curvatures=withcurvature)
     vertices = vertices.to(device)
     N = vertices.shape[0]
     nsteps = round(EPOCHS * (2 * N / BATCH))
-    refresh_sdf_nsteps = round(REFRESH_SDF_AT_PERC_STEPS * nsteps)
-    # print(refresh_sdf_nsteps)
+    refresh_sdf_nsteps = max(1, round(REFRESH_SDF_AT_PERC_STEPS * nsteps))
+    print(f"Refresh SDF at every {refresh_sdf_nsteps} training steps")
 
     min_bound = np.array([-1, -1, -1])
     max_bound = np.array([1, 1, 1])
-
-    # Marching cubes inputs
-    # voxel_size = 2.0 / (MCRESOLUTION - 1)
-    # mcsamples = gen_mc_coordinate_grid(MCRESOLUTION, voxel_size)
 
     # Create a raycasting scene to perform the SDF querying
     scene = o3d.t.geometry.RaycastingScene()
     _ = scene.add_triangles(mesh)
 
     # Create the model and optimizer
-    netconfig = NETCONFIG_MAP[MESH]
-    model = SIREN(3, 1, **netconfig).to(device)
-    # print(model)
-    # print("# parameters =", parameters_to_vector(model.parameters()).numel())
+    netcfg = config["network"]
+    model = SIREN(
+        netcfg["in_coords"],
+        netcfg["out_coords"],
+        hidden_layer_config=netcfg["hidden_layers"],
+        w0=netcfg["omega_0"],
+        ww=netcfg["omega_w"]
+    ).to(device)
+    print(model)
+    print("# parameters =", parameters_to_vector(model.parameters()).numel())
     optim = torch.optim.Adam(lr=1e-4, params=model.parameters())
     training_loss = {}
-    # print(f"Total # of steps = {NSTEPS}")
+    print(f"Total # of training steps = {nsteps}")
 
     off_surf_samples = None
 
     # Binning the curvatures
-    l1, l2 = torch.quantile(
-        vertices[..., -2],
-        torch.tensor([0.70, 0.95], device=device),
-        dim=0
-    )
-    curvature_threshs = [
-        torch.min(vertices[..., -2]),
-        l1,
-        l2,
-        torch.max(vertices[..., -2])
-    ]
+    curvature_fracs = []
+    curvature_threshs = []
+    if withcurvature:
+        l1, l2 = torch.quantile(
+            vertices[..., -2],
+            torch.tensor(samplingcfg["curvature_percentiles"], device=device),
+            dim=0
+        )
+        curvature_threshs = [
+            torch.min(vertices[..., -2]),
+            l1,
+            l2,
+            torch.max(vertices[..., -2])
+        ]
+        curvature_fracs = samplingcfg["curvature_fractions"]
+
     # Training loop
     start_training_time = time.time()
-    # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
     for e in range(nsteps):
-        # with record_function("create_samples"):
         if not e % refresh_sdf_nsteps:
             # We will recalculate the SDF points at this # of steps
             samples = create_training_data(
@@ -408,8 +461,8 @@ if __name__ == "__main__":
                 domain_bounds=[min_bound, max_bound],
                 scene=scene,
                 device=device,
-                use_curvature=True,
-                curvature_fracs=(0.2, 0.6, 0.2),
+                use_curvature=withcurvature,
+                curvature_fracs=curvature_fracs,
                 curvature_threshs=curvature_threshs
             )
             off_surf_samples = samples["off_surf"]
@@ -422,8 +475,8 @@ if __name__ == "__main__":
                 domain_bounds=[min_bound, max_bound],
                 scene=scene,
                 device=device,
-                use_curvature=True,
-                curvature_fracs=(0.2, 0.6, 0.2),
+                use_curvature=withcurvature,
+                curvature_fracs=curvature_fracs,
                 curvature_threshs=curvature_threshs
             )
 
@@ -446,10 +499,7 @@ if __name__ == "__main__":
         }
 
         optim.zero_grad(set_to_none=True)
-
-        #with record_function("model_inference"):
         y = model(training_pts)
-
         loss = true_sdf(y, gt)
 
         running_loss = torch.zeros((1, 1), device=device)
@@ -463,19 +513,11 @@ if __name__ == "__main__":
         running_loss.backward()
         optim.step()
 
-        # if not e % 100 and e > 0:
-        #     print(f"Step {e} --- Loss {running_loss.item()}")
+        if not e % 100 and e > 0:
+            print(f"Step {e} --- Loss {running_loss.item()}")
 
-    # prof.export_chrome_trace("trace_lucy_10epochs_optim_set_to_none_true.json")
     training_time = time.time() - start_training_time
     print(f"training took {training_time} s")
-    # model.eval().cpu()
-    # create_mesh(model, osp.join(RESULTPATH, "mc_i3d.ply"), N=MCRESOLUTION)
-    # verts, faces, inference_time = run_marching_cubes(
-    #     mcsamples, model, MCRESOLUTION
-    # )
-    # print(f"Marching cubes inference time {inference_time:.3} s")
-    # save_ply(verts, faces, osp.join(RESULTPATH, "mc_i3d.ply"))
-    # torch.save(
-    #     model.state_dict(), osp.join(RESULTPATH, "weights_i3d.pth")
-    # )
+    torch.save(
+        model.state_dict(), osp.join(args.outputpath, "weights.pth")
+    )

@@ -144,3 +144,5 @@ logs*
 *.csv
 *.pth
 loss_*_*
+
+results/*
