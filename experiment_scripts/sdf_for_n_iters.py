@@ -321,6 +321,14 @@ if __name__ == "__main__":
         "--nepochs", "-n", type=int, default=0,
         help="Number of training epochs for each mesh."
     )
+    parser.add_argument(
+        "--omega0", "-o", type=int, default=0,
+        help="SIREN Omega 0 parameter."
+    )
+    parser.add_argument(
+        "--omegaW", "-w", type=int, default=0,
+        help="SIREN Omega 0 parameter for hidden layers."
+    )
     args = parser.parse_args()
 
     if not osp.exists(args.configpath):
@@ -381,8 +389,8 @@ if __name__ == "__main__":
         netcfg["in_coords"],
         netcfg["out_coords"],
         hidden_layer_config=netcfg["hidden_layers"],
-        w0=netcfg["omega_0"],
-        ww=netcfg["omega_w"]
+        w0=netcfg["omega_0"] if not args.omega0 else args.omega0,
+        ww=netcfg["omega_w"] if not args.omegaW else args.omegaW
     ).to(device)
     print(model)
     print("# parameters =", parameters_to_vector(model.parameters()).numel())
