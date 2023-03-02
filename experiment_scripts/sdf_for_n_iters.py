@@ -318,8 +318,8 @@ if __name__ == "__main__":
         help="The device to perform the training on. Uses CUDA:0 by default."
     )
     parser.add_argument(
-        "--nsteps", "-n", type=int, default=0,
-        help="Number of training steps for each mesh."
+        "--nepochs", "-n", type=int, default=0,
+        help="Number of training epochs for each mesh."
     )
     args = parser.parse_args()
 
@@ -342,9 +342,9 @@ if __name__ == "__main__":
 
     trainingcfg = config["training"]
     SEED = 668123
-    EPOCHS = trainingcfg["epochs"]
+    EPOCHS = trainingcfg["epochs"] if not args.nepochs else args.nepochs
     BATCH = trainingcfg["batchsize"]
-    REFRESH_SDF_AT_PERC_STEPS = trainingcfg["resample_sdf_at"] / trainingcfg["epochs"]
+    REFRESH_SDF_AT_PERC_STEPS = trainingcfg["resample_sdf_at"] / EPOCHS
 
     np.random.seed(SEED)
     torch.manual_seed(SEED)
