@@ -93,18 +93,19 @@ def principal_directions(grad, hess):
 
     return T1, T2
 
+
 def principal_curvature_parallel_surface(Kmin, Kmax, t):
     Kg = Kmin*Kmax
     Km = 0.5*(Kmin+Kmax)
 
     #curvatures of the parallel surface [manfredo, pg253]
     aux = np.ones_like(Kg) - 2.*t*Km + t*t*Kg
-    aux[np.absolute(aux)<0.0000001] = 0.0000001
+    aux[np.absolute(aux) < 0.0000001] = 0.0000001
 
-    aux_zero = aux[np.absolute(aux)<0.0000001]
-    if(aux_zero.size > 0):
+    aux_zero = aux[np.absolute(aux) < 0.0000001]
+    if aux_zero.size > 0:
         raise Exception('aux has zero members: ' + str(aux_zero))
-    
+
     newKg = Kg/aux
     newKm = (Km-t*Kg)/aux
 
@@ -114,27 +115,30 @@ def principal_curvature_parallel_surface(Kmin, Kmax, t):
 
     return newKmin, newKmax
 
-def principal_curvature_region_detection(y,x):
+
+def principal_curvature_region_detection(y, x):
     grad = gradient(y, x)
     hess = hessian(y, x)
 
     # principal curvatures
     min_curvature, max_curvature = principal_curvature(y, x, grad, hess)
 
-    #Harris detector formula
+    # Harris detector formula
     return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
-    #return min_curvature*max_curvature - 0.5*(min_curvature+max_curvature)**2
+    # return min_curvature*max_curvature - 0.5*(min_curvature+max_curvature)**2
 
-def umbilical_indicator(y,x):
+    
+def umbilical_indicator(y, x):
     grad = gradient(y, x)
     hess = hessian(y, x)
 
     # principal curvatures
     min_curvature, max_curvature = principal_curvature(y, x, grad, hess)
 
-    #Harris detector formula
-    #return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
+    # Harris detector formula
+    # return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
     return 1-torch.abs(torch.tanh(min_curvature)-torch.tanh(max_curvature))
+
 
 def tensor_curvature(y, x):
     grad = gradient(y, x)
@@ -151,17 +155,18 @@ def tensor_curvature(y, x):
 
     return T
 
+
 def gauss_bonnet_integral(grad,hess):
     Kg = gaussian_curvature(grad,hess).unsqueeze(-1)
-    
+
     # remenber to restrict to the surface
     #Kg = torch.where(gt_sdf != -1, Kg, torch.zeros_like(Kg))
-    
+
     aux = gradient.squeeze(-1)/torch.abs(gradient[:,:,0].unsqueeze(-1))
 
     Kg = Kg*(aux.norm(dim=-1).unsqueeze(-1))
     return torch.sum(Kg)/(Kg.shape[1]*0.5)
- 
+
 
 def hessian(y, x):
     ''' hessian of y wrt x
@@ -200,24 +205,25 @@ def divergence(y, x):
 def gradient(y, x, grad_outputs=None):
     if grad_outputs is None:
         grad_outputs = torch.ones_like(y)
-    grad = torch.autograd.grad(y, [x], grad_outputs=grad_outputs, create_graph=True)[0]
+    grad = torch.autograd.grad(
+        y, [x], grad_outputs=grad_outputs, create_graph=True
+    )[0]
     return grad
+
 
 def jacobian(y, x):
     ''' jacobian of y wrt x '''
     meta_batch_size, num_observations = y.shape[:2]
-    jac = torch.zeros(meta_batch_size, num_observations, y.shape[-1], x.shape[-1]).to(y.device) # (meta_batch_size*num_points, 2, 2)
+    jac = torch.zeros(meta_batch_size, num_observations, y.shape[-1], x.shape[-1]).to(y.device)  # (meta_batch_size*num_points, 2, 2)
     for i in range(y.shape[-1]):
         # calculate dydx over batches for each feature value of y
-        y_flat = y[...,i].view(-1, 1)
-        jac[:, :, i, :] = grad(y_flat, x, torch.ones_like(y_flat), create_graph=True)[0]
+        y_flat = y[..., i].view(-1, 1)
+        jac[:, :, i, :] = grad(
+            y_flat, x, torch.ones_like(y_flat), create_graph=True
+        )[0]
 
     status = 0
     if torch.any(torch.isnan(jac)):
         status = -1
 
     return jac, status
-
-
-
-
