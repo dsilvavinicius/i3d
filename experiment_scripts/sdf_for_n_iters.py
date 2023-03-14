@@ -7,9 +7,11 @@ iterations.
 """
 
 import argparse
+import copy
 import math
 import os
 import os.path as osp
+import shutil
 import time
 import yaml
 import numpy as np
@@ -348,6 +350,8 @@ if __name__ == "__main__":
     if not osp.exists(args.outputpath):
         os.makedirs(args.outputpath)
 
+    shutil.copy(args.configpath, osp.join(args.outputpath, "config.yaml"))
+
     trainingcfg = config["training"]
     SEED = 668123
     EPOCHS = trainingcfg["epochs"] if not args.nepochs else args.nepochs
@@ -372,6 +376,7 @@ if __name__ == "__main__":
     vertices = vertices.to(device)
     N = vertices.shape[0]
     nsteps = round(EPOCHS * (2 * N / BATCH))
+    warmup_steps = nsteps // 10
     refresh_sdf_nsteps = max(1, round(REFRESH_SDF_AT_PERC_STEPS * nsteps))
     print(f"Refresh SDF at every {refresh_sdf_nsteps} training steps")
     print(f"Total # of training steps = {nsteps}")
@@ -417,16 +422,18 @@ if __name__ == "__main__":
         curvature_fracs = samplingcfg["curvature_fractions"]
 
     # Training loop
-
     trainingpts = torch.zeros((BATCH, 3), device=device)
     trainingnormals = torch.zeros((BATCH, 3), device=device)
     trainingsdf = torch.zeros((BATCH), device=device)
     nonsurf = round(BATCH * 0.5)
     noffsurf = round(BATCH * 0.5)
 
+    best_loss = torch.inf
+    best_weights = None
+
     start_training_time = time.time()
-    for e in range(nsteps):
-        if not e % refresh_sdf_nsteps:
+    for step in range(nsteps):
+        if not step % refresh_sdf_nsteps:
             # We will recalculate the SDF points at this # of steps
             samples = create_training_data(
                 vertices,
@@ -482,11 +489,18 @@ if __name__ == "__main__":
         running_loss.backward()
         optim.step()
 
-        if not e % 100 and e > 0:
-            print(f"Step {e} --- Loss {running_loss.item()}")
+        if step > warmup_steps and running_loss.item() < best_loss:
+            best_weights = copy.deepcopy(model.state_dict())
+            best_loss = running_loss.item()
+
+        if not step % 100 and step > 0:
+            print(f"Step {step} --- Loss {running_loss.item()}")
 
     training_time = time.time() - start_training_time
     print(f"training took {training_time} s")
     torch.save(
         model.state_dict(), osp.join(args.outputpath, "weights.pth")
+    )
+    torch.save(
+        best_weights, osp.join(args.outputpath, "best.pth")
     )
