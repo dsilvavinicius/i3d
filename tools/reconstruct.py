@@ -10,6 +10,7 @@ import argparse
 import os
 import os.path as osp
 from meshing import create_mesh
+import torch
 from util import from_pth
 
 
@@ -39,14 +40,16 @@ if __name__ == "__main__":
     if out_dir and not osp.exists(out_dir):
         os.makedirs(out_dir)
 
-    model = from_pth(args.model_path, w0=args.w0).eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = from_pth(args.model_path, w0=args.w0).eval().to(device)
     print(model)
     print(f"Running marching cubes running with resolution {args.resolution}")
 
     create_mesh(
         model,
         args.output_path,
-        N=args.resolution
+        N=args.resolution,
+        device=device
     )
 
     print("Done")
