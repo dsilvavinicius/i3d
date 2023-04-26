@@ -61,32 +61,46 @@ def principal_directions(grad, hess):
     # Hz signal
     s = torch.sign(grad[...,[2]])
 
-    if U != 0 or W != 0:
-        #first direction
-        T1x = (-V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
-        T1y = 2*U*grad[...,[2]]
-        T1z = ( V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
-        dir_min =  torch.cat((T1x, T1y), -1)
-        dir_min =  torch.cat((dir_min , T1z), -1)
+    # U == 0 and W == 0 
+    UW_mask = (torch.abs(U) < 1e-10) * (torch.abs(W) < 1e-10)
+    UW_mask_shape = list(UW_mask.shape)
+    UW_mask_shape[-1] *= 3
+    UW_mask_3 = UW_mask.expand(UW_mask_shape)
 
-        #second direction
-        T2x = (-V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
-        T2y = 2*U*grad[...,[2]]
-        T2z = ( V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
-        dir_max =  torch.cat((T2x, T2y), -1)
-        dir_max =  torch.cat((dir_max , T2z), -1)
-    else:
-        T1x = torch.zeros_like(grad[..., [0]])
-        T1y = grad[..., [2]]
-        T1z = - grad[..., [1]]
-        dir_min =  torch.cat((T1x, T1y), -1)
-        dir_min =  torch.cat((dir_min , T1z), -1)
+    # U != 0 or W != 0 
+    mask = ~UW_mask
+    mask_3 = ~UW_mask_3
 
-        T2x = grad[..., [2]]
-        T2y = torch.zeros_like(grad[..., [0]])
-        T2z = - grad[..., [0]]
-        dir_max =  torch.cat((T2x, T2y), -1)
-        dir_max =  torch.cat((dir_max , T2z), -1)
+    # first direction (U!=0 or W!=0)
+    T1x = (-V + s * torch.sqrt(torch.abs(V ** 2 - 4 * U * W) + 1e-10)) * grad[..., [2]]
+    T1y = 2 * U * grad[..., [2]]
+    T1z = (V - s * torch.sqrt(torch.abs(V ** 2 - 4 * U * W) + 1e-10)) * grad[..., [0]] - 2 * U * grad[..., [1]]
+    dir_min = torch.cat((T1x, T1y), -1)
+    dir_min = torch.cat((dir_min, T1z), -1)
+
+    # second direction (U!=0 or W!=0)
+    T2x = (-V - s * torch.sqrt(torch.abs(V ** 2 - 4 * U * W) + 1e-10)) * grad[..., [2]]
+    T2y = 2 * U * grad[..., [2]]
+    T2z = (V + s * torch.sqrt(torch.abs(V ** 2 - 4 * U * W) + 1e-10)) * grad[..., [0]] - 2 * U * grad[..., [1]]
+    dir_max = torch.cat((T2x, T2y), -1)
+    dir_max = torch.cat((dir_max, T2z), -1)
+
+    # first direction (U==0 and W==0)
+    T1x_UW = torch.zeros_like(grad[..., [0]])
+    T1y_UW = grad[..., [2]]
+    T1z_UW = - grad[..., [1]]
+    dir_min_UW = torch.cat((T1x_UW, T1y_UW), -1)
+    dir_min_UW = torch.cat((dir_min_UW, T1z_UW), -1)
+
+    # second direction (U==0 and W==0)
+    T2x_UW = grad[..., [2]]
+    T2y_UW = torch.zeros_like(grad[..., [0]])
+    T2z_UW = - grad[..., [0]]
+    dir_max_UW = torch.cat((T2x_UW, T2y_UW), -1)
+    dir_max_UW = torch.cat((dir_max_UW, T2z_UW), -1)
+
+    dir_min = torch.where(mask_3, dir_min, dir_min_UW)
+    dir_max = torch.where(mask_3, dir_max, dir_max_UW)
 
     #computing the umbilical points
     # umbilical = torch.where(torch.abs(U)+torch.abs(V)+torch.abs(W)<1e-6, -1, 0)
