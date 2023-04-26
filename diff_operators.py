@@ -84,7 +84,7 @@ def principal_directions(grad, hess):
 
         T2x = grad[..., [2]]
         T2y = torch.zeros_like(grad[..., [0]])
-        T2z = grad[..., [0]]
+        T2z = - grad[..., [0]]
         dir_max =  torch.cat((T2x, T2y), -1)
         dir_max =  torch.cat((dir_max , T2z), -1)
 
