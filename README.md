@@ -111,3 +111,10 @@ Besides the paper authors, we list other contributors below. Thank you for helpi
 
 ## Contact
 If you have any questions, please feel free to email the authors.
+
+## Other examples
+![Principal curvatures on Armadillo](figs/armadillo_princ_curvatures.png "Principal curvatures and directions overlaid on the Armadillo.")
+Principal curvatures and directions overlaid on the Armadillo.
+
+![Maximum curvature on Dragon](figs/dragon_max_curvature.png)
+Maximum curvature and corresponding direction on the Stanford Dragon.
