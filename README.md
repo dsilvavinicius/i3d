@@ -104,5 +104,10 @@ If you find our work useful in your research, please cite:
 }
 ```
 
+## Contributors
+Besides the paper authors, we list other contributors below. Thank you for helping make our code better!
+
+[DavidXu-JJ](https://github.com/DavidXu-JJ) - Handling the `U=W=0` case on `diff_operators.principal_directions`
+
 ## Contact
 If you have any questions, please feel free to email the authors.
