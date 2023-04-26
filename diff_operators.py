@@ -61,7 +61,7 @@ def principal_directions(grad, hess):
     # Hz signal
     s = torch.sign(grad[...,[2]])
 
-    if U != 0 and W != 0:
+    if U != 0 or W != 0:
         #first direction
         T1x = (-V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
         T1y = 2*U*grad[...,[2]]
