@@ -61,19 +61,32 @@ def principal_directions(grad, hess):
     # Hz signal
     s = torch.sign(grad[...,[2]])
 
-    #first direction
-    T1x = (-V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
-    T1y = 2*U*grad[...,[2]]
-    T1z = ( V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
-    dir_min =  torch.cat((T1x, T1y), -1)
-    dir_min =  torch.cat((dir_min , T1z), -1)
+    if U != 0 and W != 0:
+        #first direction
+        T1x = (-V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
+        T1y = 2*U*grad[...,[2]]
+        T1z = ( V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
+        dir_min =  torch.cat((T1x, T1y), -1)
+        dir_min =  torch.cat((dir_min , T1z), -1)
 
-    #second direction
-    T2x = (-V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
-    T2y = 2*U*grad[...,[2]]
-    T2z = ( V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
-    dir_max =  torch.cat((T2x, T2y), -1)
-    dir_max =  torch.cat((dir_max , T2z), -1)
+        #second direction
+        T2x = (-V - s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[2]]
+        T2y = 2*U*grad[...,[2]]
+        T2z = ( V + s*torch.sqrt(torch.abs(V**2-4*U*W)+1e-10))*grad[...,[0]] - 2*U*grad[...,[1]]
+        dir_max =  torch.cat((T2x, T2y), -1)
+        dir_max =  torch.cat((dir_max , T2z), -1)
+    else:
+        T1x = torch.zeros_like(grad[..., [0]])
+        T1y = grad[..., [2]]
+        T1z = - grad[..., [1]]
+        dir_min =  torch.cat((T1x, T1y), -1)
+        dir_min =  torch.cat((dir_min , T1z), -1)
+
+        T2x = grad[..., [2]]
+        T2y = torch.zeros_like(grad[..., [0]])
+        T2z = grad[..., [0]]
+        dir_max =  torch.cat((T2x, T2y), -1)
+        dir_max =  torch.cat((dir_max , T2z), -1)
 
     #computing the umbilical points
     # umbilical = torch.where(torch.abs(U)+torch.abs(V)+torch.abs(W)<1e-6, -1, 0)
