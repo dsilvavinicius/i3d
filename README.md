@@ -17,9 +17,9 @@ This is the official implementation of "Exploring Differential Geometry in Neura
 ## Get started
 
 ### Prerequisites
-1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems.
-2. [Git](https://git-scm.com/download).
-3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473) (If on Windows).
+1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems
+2. [Git](https://git-scm.com/download)
+3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473) (If on Windows)
 4. [MeshLab](https://www.meshlab.net/)
 
 ### Code organization
@@ -45,7 +45,7 @@ In the `tools` folder, there are two scripts:
 ### Setup and sample run
 
 1. Open a terminal (or Git Bash if using Windows)
-2. Clone the repository: `git clone git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git i3d`.
+2. Clone the repository: `git clone git@github.com:dsilvavinicius/differential_geometry_in_neural_implicits.git i3d`.
 3. Enter project folder: `cd i3d`.
 4. Create the environment and setup project dependencies:
 ```
@@ -110,7 +110,7 @@ Besides the paper authors, we list other contributors below. Thank you for helpi
 [DavidXu-JJ](https://github.com/DavidXu-JJ) - Handling the `U=W=0` case on `diff_operators.principal_directions`
 
 ## Contact
-If you have any questions, please feel free to email the authors.
+If you have any questions, please feel free to email the authors, or open an issue.
 
 ## Other examples
 ![Principal curvatures on Armadillo](figs/armadillo_princ_curvatures.png "Principal curvatures and directions overlaid on the Armadillo.")
