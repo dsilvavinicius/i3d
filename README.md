@@ -17,9 +17,9 @@ This is the official implementation of "Exploring Differential Geometry in Neura
 ## Get started
 
 ### Prerequisites
-1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems.
-2. [Git](https://git-scm.com/download).
-3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473) (If on Windows).
+1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems
+2. [Git](https://git-scm.com/download)
+3. [Integrate Git Bash with conda](https://discuss.codecademy.com/t/setting-up-conda-in-git-bash/534473) (If on Windows)
 4. [MeshLab](https://www.meshlab.net/)
 
 ### Code organization
@@ -46,7 +46,7 @@ In the `tools` folder, there are two scripts:
 ### Setup and sample run
 
 1. Open a terminal (or Git Bash if using Windows)
-2. Clone the repository: `git clone git@github.com:dsilvavinicius/high_order_derivative_learning_for_graphics.git i3d`.
+2. Clone the repository: `git clone git@github.com:dsilvavinicius/differential_geometry_in_neural_implicits.git i3d`.
 3. Enter project folder: `cd i3d`.
 4. Create the environment and setup project dependencies:
 ```
@@ -93,17 +93,31 @@ xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.jso
 ## Citation
 If you find our work useful in your research, please cite:
 ```
-@misc{novello:i3d:2022,
-  doi = {10.48550/ARXIV.2201.09263},
-  url = {https://arxiv.org/abs/2201.09263},
-  author = {Novello, Tiago and Schardong, Guilherme and Schirmer, Luiz and da Silva, Vinicius and Lopes, Helio and Velho, Luiz},
-  keywords = {Graphics (cs.GR), Machine Learning (cs.LG), FOS: Computer and information sciences, FOS: Computer and information sciences},
-  title = {Exploring Differential Geometry in Neural Implicits},
-  publisher = {arXiv},
+@article{novello:i3d:2022,
+  title = {Exploring differential geometry in neural implicits},
+  journal = {Computers & Graphics},
+  volume = {108},
+  pages = {49-60},
   year = {2022},
-  copyright = {Creative Commons Attribution 4.0 International}
+  issn = {0097-8493},
+  doi = {https://doi.org/10.1016/j.cag.2022.09.003},
+  url = {https://www.sciencedirect.com/science/article/pii/S0097849322001649},
+  author = {Tiago Novello and Guilherme Schardong and Luiz Schirmer and Vinícius {da Silva} and Hélio Lopes and Luiz Velho},
+  keywords = {Implicit surfaces, Neural Implicits, Neural Networks, Curvatures},
 }
 ```
 
+## Contributors
+Besides the paper authors, we list other contributors below. Thank you for helping make our code better!
+
+[DavidXu-JJ](https://github.com/DavidXu-JJ) - Handling the `U=W=0` case on `diff_operators.principal_directions`
+
 ## Contact
-If you have any questions, please feel free to email the authors.
+If you have any questions, please feel free to email the authors, or open an issue.
+
+## Other examples
+![Principal curvatures on Armadillo](figs/armadillo_princ_curvatures.png "Principal curvatures and directions overlaid on the Armadillo.")
+Principal curvatures and directions overlaid on the Armadillo.
+
+![Maximum curvature on Dragon](figs/dragon_max_curvature.png)
+Maximum curvature and corresponding direction on the Stanford Dragon.

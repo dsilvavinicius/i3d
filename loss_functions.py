@@ -188,7 +188,7 @@ def principal_directions_sdf(model_output, gt):
 
     gradient = diff_operators.gradient(pred_sdf, coords)
     hessian = diff_operators.hessian(pred_sdf, coords)
-    pred_dirs = diff_operators.principal_directions(gradient, hessian[0])
+    pred_dirs = diff_operators.principal_directions(gradient, hessian)
 
     dirs_constraint = direction_aligment_on_surf(gt_sdf, gt_dirs, pred_dirs[0][...,0:3])
 
