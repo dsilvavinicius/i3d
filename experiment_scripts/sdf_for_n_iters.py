@@ -499,8 +499,20 @@ if __name__ == "__main__":
     training_time = time.time() - start_training_time
     print(f"training took {training_time} s")
     torch.save(
+        model.state_dict(), osp.join(args.outputpath, "weights_with_w0.pth")
+    )
+    model.update_omegas(w0=1, ww=None)
+    torch.save(
         model.state_dict(), osp.join(args.outputpath, "weights.pth")
     )
     torch.save(
-        best_weights, osp.join(args.outputpath, "best.pth")
+        best_weights, osp.join(args.outputpath, "best_with_w0.pth")
+    )
+
+    model.w0 = netcfg["omega_0"] if not args.omega0 else args.omega0,
+    model.ww = netcfg["omega_w"] if not args.omegaW else args.omegaW
+    model.load_state_dict(best_weights)
+    model.update_omegas(w0=1, ww=None)
+    torch.save(
+        model.state_dict(), osp.join(args.outputpath, "best.pth")
     )
