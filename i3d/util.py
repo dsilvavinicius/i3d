@@ -7,7 +7,7 @@ import os.path as osp
 import shutil
 import logging
 import torch
-from model import SIREN
+from i3d.model import SIREN
 
 
 def create_output_paths(checkpoint_path, experiment_name, overwrite=True):

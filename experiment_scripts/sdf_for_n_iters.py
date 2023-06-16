@@ -20,8 +20,8 @@ import open3d.core as o3c
 from plyfile import PlyData
 import torch
 from torch.nn.utils import parameters_to_vector
-from loss_functions import true_sdf
-from model import SIREN
+from i3d.loss_functions import true_sdf
+from i3d.model import SIREN
 
 
 def curvature_segmentation(
@@ -509,7 +509,7 @@ if __name__ == "__main__":
         best_weights, osp.join(args.outputpath, "best_with_w0.pth")
     )
 
-    model.w0 = netcfg["omega_0"] if not args.omega0 else args.omega0,
+    model.w0 = netcfg["omega_0"] if not args.omega0 else args.omega0
     model.ww = netcfg["omega_w"] if not args.omegaW else args.omegaW
     model.load_state_dict(best_weights)
     model.update_omegas(w0=1, ww=None)

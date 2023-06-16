@@ -9,9 +9,9 @@ and a set of checkpoints.
 import argparse
 import os
 import os.path as osp
-from meshing import create_mesh
 import torch
-from util import from_pth
+from i3d.meshing import create_mesh
+from i3d.util import from_pth
 
 
 if __name__ == "__main__":
@@ -27,12 +27,12 @@ if __name__ == "__main__":
         help="Path to the output mesh file"
     )
     parser.add_argument(
-        "w0", type=int, default=30,
-        help="Value for \\omega_0."
+        "--w0", type=int, default=1,
+        help="Value for \\omega_0. Default is 1."
     )
     parser.add_argument(
         "--resolution", "-r", default=128, type=int,
-        help="Resolution to use on marching cubes."
+        help="Resolution to use on marching cubes. Default is 128."
     )
 
     args = parser.parse_args()

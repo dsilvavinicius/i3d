@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn.functional as F
-import diff_operators
+import i3d.diff_operators
 
 
 def sdf_constraint_on_surf(gt_sdf, pred_sdf):
@@ -95,7 +95,7 @@ def sdf_sitzmann(X, gt):
     coords = X["model_in"]
     pred_sdf = X["model_out"]
 
-    grad = diff_operators.gradient(pred_sdf, coords)
+    grad = i3d.diff_operators.gradient(pred_sdf, coords)
 
     # Initial-boundary constraints
     sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
@@ -138,7 +138,7 @@ def true_sdf(X, gt):
     coords = X['model_in']
     pred_sdf = X['model_out']
 
-    gradient = diff_operators.gradient(pred_sdf, coords)
+    gradient = i3d.diff_operators.gradient(pred_sdf, coords)
 
     # Initial-boundary constraints
     sdf_on_surf = sdf_constraint_on_surf(gt_sdf, pred_sdf)
@@ -186,9 +186,9 @@ def principal_directions_sdf(model_output, gt):
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
 
-    gradient = diff_operators.gradient(pred_sdf, coords)
-    hessian = diff_operators.hessian(pred_sdf, coords)
-    pred_dirs = diff_operators.principal_directions(gradient, hessian)
+    gradient = i3d.diff_operators.gradient(pred_sdf, coords)
+    hessian = i3d.diff_operators.hessian(pred_sdf, coords)
+    pred_dirs = i3d.diff_operators.principal_directions(gradient, hessian)
 
     dirs_constraint = direction_aligment_on_surf(gt_sdf, gt_dirs, pred_dirs[0][...,0:3])
 
@@ -237,10 +237,10 @@ def mean_curvature_sdf(model_output, gt):
     coords = model_output['model_in']
     pred_sdf = model_output['model_out']
 
-    gradient = diff_operators.gradient(pred_sdf, coords)
+    gradient = i3d.diff_operators.gradient(pred_sdf, coords)
 
    # mean curvature
-    pred_curvature = diff_operators.divergence(gradient, coords)
+    pred_curvature = i3d.diff_operators.divergence(gradient, coords)
     curv_constraint = torch.where(
         gt_sdf == 0,
         (pred_curvature - gt_curvature) ** 2,
