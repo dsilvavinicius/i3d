@@ -98,10 +98,21 @@ def sdf_sitzmann(X, gt):
     grad = i3d.diff_operators.gradient(pred_sdf, coords)
 
     # Initial-boundary constraints
-    sdf_constraint = torch.where(gt_sdf != -1, pred_sdf, torch.zeros_like(pred_sdf))
-    inter_constraint = torch.where(gt_sdf != -1, torch.zeros_like(pred_sdf), torch.exp(-1e2 * torch.abs(pred_sdf)))
-    normal_constraint = torch.where(gt_sdf != -1, 1 - F.cosine_similarity(grad, gt_normals, dim=-1)[..., None],
-                                    torch.zeros_like(grad[..., :1]))
+    sdf_constraint = torch.where(
+        gt_sdf != -1,
+        pred_sdf,
+        torch.zeros_like(pred_sdf)
+    )
+    inter_constraint = torch.where(
+        gt_sdf != -1,
+        torch.zeros_like(pred_sdf),
+        torch.exp(-1e2 * torch.abs(pred_sdf))
+    )
+    normal_constraint = torch.where(
+        gt_sdf != -1,
+        1 - F.cosine_similarity(grad, gt_normals, dim=-1)[..., None],
+        torch.zeros_like(grad[..., :1])
+    )
 
     # PDE constraints
     grad_constraint = torch.abs(grad.norm(dim=-1) - 1)
@@ -151,8 +162,8 @@ def true_sdf(X, gt):
     return {
        'sdf_on_surf': sdf_on_surf.mean() * 3e3,
        'sdf_off_surf': sdf_off_surf.mean() * 2e2,
-       'normal_constraint': normal_constraint.mean() * 1e2, #* 1e1,
-       'grad_constraint': grad_constraint.mean() * 5e1 #1e1
+       'normal_constraint': normal_constraint.mean() * 1e2,  # 1e1,
+       'grad_constraint': grad_constraint.mean() * 5e1  # 1e1
     }
 
 
@@ -190,21 +201,35 @@ def principal_directions_sdf(model_output, gt):
     hessian = i3d.diff_operators.hessian(pred_sdf, coords)
     pred_dirs = i3d.diff_operators.principal_directions(gradient, hessian)
 
-    dirs_constraint = direction_aligment_on_surf(gt_sdf, gt_dirs, pred_dirs[0][...,0:3])
+    dirs_constraint = direction_aligment_on_surf(
+        gt_sdf, gt_dirs, pred_dirs[0][..., :3]
+    )
 
-    aux_dirs_constraint = torch.where(gt_sdf == 0, F.cosine_similarity(pred_dirs[0][...,0:3], gt_normals, dim=-1)[..., None]**2, torch.zeros_like(gt_sdf))
+    aux_dirs_constraint = torch.where(
+        gt_sdf == 0,
+        F.cosine_similarity(pred_dirs[0][..., :3], gt_normals, dim=-1)[..., None]**2,
+        torch.zeros_like(gt_sdf)
+    )
 
     dirs_constraint = dirs_constraint + 0.1*aux_dirs_constraint
 
-    #removing problematic curvatures and planar points
-    planar_curvature = 0.5*torch.abs(gt_min_curvature-gt_max_curvature)
-    dirs_constraint = torch.where(planar_curvature > 10  , dirs_constraint, torch.zeros_like(dirs_constraint))
-    dirs_constraint = torch.where(planar_curvature < 5000, dirs_constraint, torch.zeros_like(dirs_constraint))
+    # Removing problematic curvatures and planar points
+    planar_curvature = 0.5 * torch.abs(gt_min_curvature - gt_max_curvature)
+    dirs_constraint = torch.where(
+        planar_curvature > 10,
+        dirs_constraint,
+        torch.zeros_like(dirs_constraint)
+    )
+    dirs_constraint = torch.where(
+        planar_curvature < 5000,
+        dirs_constraint,
+        torch.zeros_like(dirs_constraint)
+    )
 
     return {
         "sdf_on_surf": sdf_constraint_on_surf(gt_sdf, pred_sdf).mean() * 3e3,
         "sdf_off_surf": sdf_constraint_off_surf(gt_sdf, pred_sdf).mean() * 2e2,
-        "normal_constraint": vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2,#* 1e1,
+        "normal_constraint": vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() * 1e2,  # 1e1,
         "grad_constraint": eikonal_constraint(gradient).mean() * 5e1,
         "dirs_constraint": dirs_constraint.mean()
     }
@@ -239,7 +264,7 @@ def mean_curvature_sdf(model_output, gt):
 
     gradient = i3d.diff_operators.gradient(pred_sdf, coords)
 
-   # mean curvature
+    # mean curvature
     pred_curvature = i3d.diff_operators.divergence(gradient, coords)
     curv_constraint = torch.where(
         gt_sdf == 0,
@@ -247,11 +272,12 @@ def mean_curvature_sdf(model_output, gt):
         torch.zeros_like(pred_curvature)
     )
 
-    # Wherever boundary_values is not equal to zero, we interpret it as a boundary constraint.
+    # Wherever boundary_values is not equal to zero, we interpret it as a
+    # boundary constraint.
     return {
         'sdf_on_surf': sdf_constraint_on_surf(gt_sdf, pred_sdf).mean() * 3e3,
         'sdf_off_surf': sdf_constraint_off_surf(gt_sdf, pred_sdf).mean() * 2e2,
-        'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() *1e2 ,#* 1e1,
+        'normal_constraint': vector_aligment_on_surf(gt_sdf, gt_normals, gradient).mean() * 1e2,  # 1e1,
         'grad_constraint': eikonal_constraint(gradient).unsqueeze(-1).mean() * 5e1,
         'curv_constraint': curv_constraint.mean() * 1e-1
     }
