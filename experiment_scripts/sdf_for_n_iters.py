@@ -156,7 +156,7 @@ def create_training_data(
 
     device: str or torch.device, optional
         The compute device where `vertices` is stored. By default its
-        torch.device("cpu")
+        torch.device("cpu").
 
     no_sdf: boolean, optional
         Don't query SDF for domain points, instead we mark them with SDF = -1.
@@ -356,7 +356,10 @@ if __name__ == "__main__":
     SEED = 668123
     EPOCHS = trainingcfg["epochs"] if not args.nepochs else args.nepochs
     BATCH = trainingcfg["batchsize"]
-    REFRESH_SDF_AT_PERC_STEPS = trainingcfg["resample_sdf_at"] / EPOCHS
+    if trainingcfg["resample_sdf_at"] == 1:
+        REFRESH_SDF_AT_PERC_STEPS = 0
+    else:
+        REFRESH_SDF_AT_PERC_STEPS = trainingcfg["resample_sdf_at"] / EPOCHS
 
     np.random.seed(SEED)
     torch.manual_seed(SEED)
