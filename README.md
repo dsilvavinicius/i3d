@@ -14,7 +14,7 @@ This is the official implementation of "Exploring Differential Geometry in Neura
 
 ![Armadillo Curvatures](figs/armadillo_curvatures.png)
 
-## Get started
+## Getting started
 
 ### Prerequisites
 1. [Anaconda](https://www.anaconda.com/products/individual#Downloads), alternativelly you can use [PyEnv](https://github.com/pyenv/pyenv) and [PyEnv-VirtualEnv](https://github.com/pyenv/pyenv-virtualenv) on UNIX based/like systems
@@ -58,7 +58,7 @@ or, if using pyenv (with pyenv-virtualenv):
 ```
 pyenv virtualenv 3.9.9 i3d
 pyenv local i3d
-pip install -r requirements
+pip install -r requirements.txt
 pip install -e .
 ```
 5. Download the datasets (available [here](https://drive.google.com/file/d/1MxG9nwiuCS6z9vo59NF93brw5DFYflMl/view?usp=sharing)) and extract them into the `data` folder of the repository
