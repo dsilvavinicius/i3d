@@ -10,11 +10,9 @@ import argparse
 import copy
 import os
 import os.path as osp
-import shutil
 import time
 import yaml
 import numpy as np
-import open3d as o3d
 import torch
 from torch.nn.utils import parameters_to_vector
 from i3d.dataset import PointCloudDeferredSampling
@@ -56,6 +54,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--omegaW", "-w", type=int, default=0,
         help="SIREN Omega 0 parameter for hidden layers."
+    )
+    parser.add_argument(
+        "--hidden-layer-config", type=int, nargs='+', default=[],
+        help="SIREN neurons per layer. By default we fetch it from the"
+        " configuration file."
     )
     parser.add_argument(
         "--batchsize", "-b", type=int, default=0,
@@ -180,12 +183,17 @@ if __name__ == "__main__":
     print(f"Resampling SDF at every {resample_sdf_nsteps} training steps")
     print(f"Total # of training steps = {nsteps}")
 
-    # Create the model and optimizer
     netcfg = config["network"]
+    hidden_layer_config = netcfg["hidden_layers"]
+    if args.hidden_layer_config:
+        hidden_layer_config = [int(n) for n in args.hidden_layer_config]
+        config["network"]["hidden_layers"] = hidden_layer_config
+
+    # Create the model and optimizer
     model = SIREN(
         netcfg["in_coords"],
         netcfg["out_coords"],
-        hidden_layer_config=netcfg["hidden_layers"],
+        hidden_layer_config=hidden_layer_config,
         w0=netcfg["omega_0"] if not args.omega0 else args.omega0,
         ww=netcfg["omega_w"] if not args.omegaW else args.omegaW
     ).to(device)
