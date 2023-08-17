@@ -3,7 +3,10 @@
 
 """
 Experiments with calculating the SDF for a batch of points and reusing it for N
-iterations.
+iterations. Most of its behaviour was replicated in the i3d package already,
+but we kept this here for historical reasons and to facilitate experiments.
+With the exception of the loss function and model definition, this script
+should be (and remain) independent of the main i3d package.
 """
 
 import argparse
