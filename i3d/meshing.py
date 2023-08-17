@@ -72,7 +72,7 @@ def gen_mc_coordinate_grid(N: int, voxel_size: float, t: float = None,
 def create_mesh(
     decoder,
     filename="",
-    t=-1, # time=-1 means we are only in the space
+    t=None,
     N=256,
     max_batch=64 ** 3,
     offset=None,
@@ -89,17 +89,15 @@ def create_mesh(
     samples = gen_mc_coordinate_grid(N, voxel_size, t=None if t == -1 else t,
                                      device=device)
 
-    sdf_coord = 3
-    if (t != -1):
-        sdf_coord = 4
+    sdf_coord = 3 if t is None else 4
 
     num_samples = N ** 3
     head = 0
 
     start = time.time()
     while head < num_samples:
-        # print(head)
-        sample_subset = samples[head:min(head + max_batch, num_samples), 0:sdf_coord]
+        sample_subset = samples[head:min(head + max_batch, num_samples),
+                                0:sdf_coord]
 
         samples[head:min(head + max_batch, num_samples), sdf_coord] = (
             decoder(sample_subset)["model_out"]
@@ -154,7 +152,7 @@ def convert_sdf_samples_to_ply(
     This function adapted from: https://github.com/RobotLocomotion/spartan
     """
     if isinstance(pytorch_3d_sdf_tensor, torch.Tensor):
-        numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
+        numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.detach().cpu().numpy()
     else:
         numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor
 
@@ -163,7 +161,7 @@ def convert_sdf_samples_to_ply(
     # Check if the cubes contains the zero-level set
     level = 0.0
     if level < numpy_3d_sdf_tensor.min() or level > numpy_3d_sdf_tensor.max():
-        print(f"Surface level must be within volume data range.")
+        print("Surface level must be within volume data range.")
     else:
         verts, faces, normals, values = marching_cubes(
             numpy_3d_sdf_tensor, level, spacing=[voxel_size] * 3
