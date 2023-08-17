@@ -500,7 +500,6 @@ class PointCloudDeferredSampling(PointCloud):
             device=device
         )
         self.refresh_sdf = True
-        self.samples = torch.zeros((batch_size, 7), device=device)
 
     def __getitem__(self, _):
         """Returns a batch of points to the caller."""
