@@ -1,5 +1,5 @@
 network:
-  hidden_layers: [256, 256]
+  hidden_layers: [256, 256, 256]
   omega_0: 60
   omega_w: 60
   in_coords: 3
@@ -11,10 +11,10 @@ optimizer:
 
 training:
   epochs: 100
-  batchsize: 40000
+  batchsize: 20000
   resample_sdf_at: 10  # this is in epochs
 
 sampling:
   type: curvature  # curvature or uniform
   curvature_fractions: [0.2, 0.6, 0.2]
-  curvature_percentiles: [0.7, 0.95]
+  curvature_percentiles: [0.6, 0.95]
