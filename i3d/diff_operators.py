@@ -64,23 +64,23 @@ def principal_curvature(y, x, grad, hess):
     return Kmin, Kmax
 
 
-#Che, Wujun, Jean-Claude Paul, and Xiaopeng Zhang.
-#"Lines of curvature and umbilical points for implicit surfaces.
-#" Computer Aided Geometric Design 24.7 (2007): 395-409.
+# Che, Wujun, Jean-Claude Paul, and Xiaopeng Zhang.
+# "Lines of curvature and umbilical points for implicit surfaces."
+# Computer Aided Geometric Design 24.7 (2007): 395-409.
 def principal_directions(grad, hess):
-    A =      grad[...,[1]]*hess[...,0,2] - grad[...,[2]]*hess[...,0,1]
-    B = 0.5*(grad[...,[2]]*hess[...,0,0] - grad[...,[0]]*hess[...,0,2] + grad[...,[1]]*hess[...,1,2] - grad[...,[2]]*hess[...,1,1])
-    C = 0.5*(grad[...,[1]]*hess[...,2,2] - grad[...,[2]]*hess[...,1,2] + grad[...,[0]]*hess[...,0,1] - grad[...,[1]]*hess[...,0,0])
-    D =      grad[...,[2]]*hess[...,0,1] - grad[...,[0]]*hess[...,1,2]
-    E = 0.5*(grad[...,[0]]*hess[...,1,1] - grad[...,[1]]*hess[...,0,1] + grad[...,[2]]*hess[...,0,2] - grad[...,[0]]*hess[...,2,2])
-    F =      grad[...,[0]]*hess[...,1,2] - grad[...,[1]]*hess[...,0,2]
+    A =      grad[..., [1]]*hess[..., 0, 2] - grad[..., [2]]*hess[..., 0, 1]
+    B = 0.5*(grad[..., [2]]*hess[..., 0, 0] - grad[..., [0]]*hess[..., 0, 2] + grad[..., [1]]*hess[..., 1, 2] - grad[..., [2]]*hess[..., 1, 1])
+    C = 0.5*(grad[..., [1]]*hess[..., 2, 2] - grad[..., [2]]*hess[..., 1, 2] + grad[..., [0]]*hess[..., 0, 1] - grad[..., [1]]*hess[..., 0, 0])
+    D =      grad[..., [2]]*hess[..., 0, 1] - grad[..., [0]]*hess[..., 1, 2]
+    E = 0.5*(grad[..., [0]]*hess[..., 1, 1] - grad[..., [1]]*hess[..., 0, 1] + grad[..., [2]]*hess[..., 0, 2] - grad[..., [0]]*hess[..., 2, 2])
+    F =      grad[..., [0]]*hess[..., 1, 2] - grad[..., [1]]*hess[..., 0, 2]
 
-    U = A*grad[...,[2]]**2 - 2.*C*grad[...,[0]]*grad[...,[2]] + F*grad[...,[0]]**2
-    V = 2*(B*grad[...,[2]]**2 - C*grad[...,[1]]*grad[...,[2]] - E*grad[...,[0]]*grad[...,[2]] + F*grad[...,[0]]*grad[...,[1]])
-    W = D*grad[...,[2]]**2 - 2.*E*grad[...,[1]]*grad[...,[2]] + F*grad[...,[1]]**2
+    U = A*grad[..., [2]]**2 - 2.*C*grad[..., [0]]*grad[..., [2]] + F*grad[..., [0]]**2
+    V = 2*(B*grad[..., [2]]**2 - C*grad[..., [1]]*grad[..., [2]] - E*grad[..., [0]]*grad[..., [2]] + F*grad[..., [0]]*grad[..., [1]])
+    W = D*grad[..., [2]]**2 - 2.*E*grad[..., [1]]*grad[..., [2]] + F*grad[..., [1]]**2
 
     # Hz signal
-    s = torch.sign(grad[...,[2]])
+    s = torch.sign(grad[..., [2]])
 
     # U == 0 and W == 0
     UW_mask = (torch.abs(U) < 1e-10) * (torch.abs(W) < 1e-10)
@@ -89,7 +89,7 @@ def principal_directions(grad, hess):
     UW_mask_3 = UW_mask.expand(UW_mask_shape)
 
     # U != 0 or W != 0
-    mask = ~UW_mask
+    # mask = ~UW_mask
     mask_3 = ~UW_mask_3
 
     # first direction (U!=0 or W!=0)
@@ -123,32 +123,32 @@ def principal_directions(grad, hess):
     dir_min = torch.where(mask_3, dir_min, dir_min_UW)
     dir_max = torch.where(mask_3, dir_max, dir_max_UW)
 
-    #computing the umbilical points
+    # computing the umbilical points
     # umbilical = torch.where(torch.abs(U)+torch.abs(V)+torch.abs(W)<1e-6, -1, 0)
 
     # normalizing the principal directions
-    len_min=dir_min.norm(dim=-1).unsqueeze(-1)
-    len_max=dir_max.norm(dim=-1).unsqueeze(-1)
+    len_min = dir_min.norm(dim=-1).unsqueeze(-1)
+    len_max = dir_max.norm(dim=-1).unsqueeze(-1)
 
     return dir_min/len_min, dir_max/len_max
 
 
-def principal_curvature_parallel_surface(Kmin, Kmax, t):
+def principal_curvature_parallel_surface(Kmin, Kmax, t, eps=1e-6):
     Kg = Kmin*Kmax
     Km = 0.5*(Kmin+Kmax)
 
-    #curvatures of the parallel surface [manfredo, pg253]
+    # curvatures of the parallel surface [manfredo, pg253]
     aux = np.ones_like(Kg) - 2.*t*Km + t*t*Kg
-    aux[np.absolute(aux) < 0.0000001] = 0.0000001
+    aux[np.absolute(aux) < eps] = eps
 
-    aux_zero = aux[np.absolute(aux) < 0.0000001]
+    aux_zero = aux[np.absolute(aux) < eps]
     if aux_zero.size > 0:
         raise Exception('aux has zero members: ' + str(aux_zero))
 
     newKg = Kg/aux
     newKm = (Km-t*Kg)/aux
 
-    A = np.sqrt(np.absolute(newKm**2 - newKg) + 0.00001)
+    A = np.sqrt(np.absolute(newKm**2 - newKg) + eps)
     newKmax = newKm + A
     newKmin = newKm - A
 
@@ -195,13 +195,13 @@ def tensor_curvature(y, x):
     return T
 
 
-def gauss_bonnet_integral(grad,hess):
-    Kg = gaussian_curvature(grad,hess).unsqueeze(-1)
+def gauss_bonnet_integral(grad, hess):
+    Kg = gaussian_curvature(grad, hess).unsqueeze(-1)
 
     # remenber to restrict to the surface
-    #Kg = torch.where(gt_sdf != -1, Kg, torch.zeros_like(Kg))
+    # Kg = torch.where(gt_sdf != -1, Kg, torch.zeros_like(Kg))
 
-    aux = gradient.squeeze(-1)/torch.abs(gradient[:,:,0].unsqueeze(-1))
+    aux = gradient.squeeze(-1)/torch.abs(gradient[:, :, 0].unsqueeze(-1))
 
     Kg = Kg*(aux.norm(dim=-1).unsqueeze(-1))
     return torch.sum(Kg)/(Kg.shape[1]*0.5)
@@ -250,7 +250,9 @@ def laplace(y, x):
 def divergence(y, x):
     div = 0.
     for i in range(y.shape[-1]):
-        div += grad(y[..., i], x, torch.ones_like(y[..., i]), create_graph=True)[0][..., i:i+1]
+        div += grad(
+            y[..., i], x, torch.ones_like(y[..., i]), create_graph=True
+        )[0][..., i:i+1]
     return div
 
 
@@ -269,21 +271,23 @@ def jacobian(y: torch.Tensor, x: torch.Tensor):
     Parameters
     ----------
     y: torch.Tensor
-        A [B, N, A] tensor with the outputs of f(x)
+        A [B, N, D_out] tensor with the outputs of f(x)
 
     x: torch.Tensor
-        A [B, N, D] tensor such that f(x) = y
+        A [B, N, D_in] tensor such that f(x) = y
 
     Returns
     -------
     jac: torch.Tensor
-        A [B, N, A, D] tensor with the jacobian of y wrt x.
+        A [B, N, D_out, D_in] tensor with the jacobian of y wrt x.
 
     status: int
         -1 if any NaN were introduced by the calculations, 0 otherwise
     """
     meta_batch_size, num_observations = y.shape[:2]
-    jac = torch.zeros(meta_batch_size, num_observations, y.shape[-1], x.shape[-1]).to(y.device)  # (meta_batch_size*num_points, 2, 2)
+    jac = torch.zeros(
+        meta_batch_size, num_observations, y.shape[-1], x.shape[-1]
+    ).to(y.device)  # (meta_batch_size*num_points, 2, 2)
     for i in range(y.shape[-1]):
         # calculate dydx over batches for each feature value of y
         y_flat = y[..., i].view(-1, 1)
