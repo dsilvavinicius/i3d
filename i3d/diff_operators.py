@@ -1,18 +1,36 @@
+# coding: utf-8
+
+import itertools
+import numpy as np
 import torch
 from torch.autograd import grad
-import itertools
 
-import numpy as np
 
-def gaussian_curvature(grad, hess):
-    ''' curvature of a implicit surface (https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas).
-    '''    
+def gaussian_curvature(grad: torch.Tensor, hess: torch.Tensor) -> torch.Tensor:
+    """Calculates the Gaussian curvature of a implicit surface.
+    See https://en.wikipedia.org/wiki/Gaussian_curvature#Alternative_formulas
+    for details.
+
+    Parameters
+    ----------
+    grad: torch.Tensor
+        Gradient of the surface, shaped [B, N, 3].
+
+    hess: torch.Tensor
+        Hessian of the surface, shaped [B, N, 1, 1, 3, 3].
+
+    Returns
+    -------
+    Kg: torch.Tensor
+        The gaussian curvatures.
+    """
     # Append gradients to the last columns of the hessians.
     grad5d = torch.unsqueeze(grad, 2)
     grad5d = torch.unsqueeze(grad5d, -1)
     F = torch.cat((hess, grad5d), -1)
-    
-    # Append gradients (with and additional 0 at the last coord) to the last lines of the hessians.
+
+    # Append gradients (with and additional 0 at the last coord) to the last
+    # lines of the hessians.
     hess_size = hess.size()
     zeros_size = list(itertools.chain.from_iterable((hess_size[:3], [1, 1])))
     zeros = torch.zeros(zeros_size).to(grad.device)
@@ -21,10 +39,11 @@ def gaussian_curvature(grad, hess):
     grad5d = torch.cat((grad5d, zeros), -1)
 
     F = torch.cat((F, grad5d), -2)
-    grad_norm = torch.norm(grad, dim=-1) 
+    grad_norm = torch.norm(grad, dim=-1)
 
     Kg = -torch.det(F)[-1].squeeze(-1) / (grad_norm[0]**4)
     return Kg
+
 
 def mean_curvature(y, x):
     grad = gradient(y, x)
@@ -34,16 +53,18 @@ def mean_curvature(y, x):
     Km = 0.5*divergence(unit_grad, x)
     return Km
 
+
 def principal_curvature(y, x, grad, hess):
-    Kg = gaussian_curvature(grad,hess).unsqueeze(-1)
-    Km = mean_curvature(y,x).squeeze(0)
-    A = torch.sqrt(torch.abs(torch.pow(Km,2) - Kg) + 0.00001)
+    Kg = gaussian_curvature(grad, hess).unsqueeze(-1)
+    Km = mean_curvature(y, x).squeeze(0)
+    A = torch.sqrt(torch.abs(torch.pow(Km, 2) - Kg) + 0.00001)
     Kmax = Km + A
     Kmin = Km - A
 
     return Kmin, Kmax
 
-#Che, Wujun, Jean-Claude Paul, and Xiaopeng Zhang. 
+
+#Che, Wujun, Jean-Claude Paul, and Xiaopeng Zhang.
 #"Lines of curvature and umbilical points for implicit surfaces.
 #" Computer Aided Geometric Design 24.7 (2007): 395-409.
 def principal_directions(grad, hess):
@@ -53,7 +74,7 @@ def principal_directions(grad, hess):
     D =      grad[...,[2]]*hess[...,0,1] - grad[...,[0]]*hess[...,1,2]
     E = 0.5*(grad[...,[0]]*hess[...,1,1] - grad[...,[1]]*hess[...,0,1] + grad[...,[2]]*hess[...,0,2] - grad[...,[0]]*hess[...,2,2])
     F =      grad[...,[0]]*hess[...,1,2] - grad[...,[1]]*hess[...,0,2]
-    
+
     U = A*grad[...,[2]]**2 - 2.*C*grad[...,[0]]*grad[...,[2]] + F*grad[...,[0]]**2
     V = 2*(B*grad[...,[2]]**2 - C*grad[...,[1]]*grad[...,[2]] - E*grad[...,[0]]*grad[...,[2]] + F*grad[...,[0]]*grad[...,[1]])
     W = D*grad[...,[2]]**2 - 2.*E*grad[...,[1]]*grad[...,[2]] + F*grad[...,[1]]**2
@@ -61,13 +82,13 @@ def principal_directions(grad, hess):
     # Hz signal
     s = torch.sign(grad[...,[2]])
 
-    # U == 0 and W == 0 
+    # U == 0 and W == 0
     UW_mask = (torch.abs(U) < 1e-10) * (torch.abs(W) < 1e-10)
     UW_mask_shape = list(UW_mask.shape)
     UW_mask_shape[-1] *= 3
     UW_mask_3 = UW_mask.expand(UW_mask_shape)
 
-    # U != 0 or W != 0 
+    # U != 0 or W != 0
     mask = ~UW_mask
     mask_3 = ~UW_mask_3
 
@@ -145,7 +166,7 @@ def principal_curvature_region_detection(y, x):
     return min_curvature*max_curvature - 0.05*(min_curvature+max_curvature)**2
     # return min_curvature*max_curvature - 0.5*(min_curvature+max_curvature)**2
 
-    
+
 def umbilical_indicator(y, x):
     grad = gradient(y, x)
     hess = hessian(y, x)
@@ -186,7 +207,7 @@ def gauss_bonnet_integral(grad,hess):
     return torch.sum(Kg)/(Kg.shape[1]*0.5)
 
 
-def hessian(y, x):
+def hessian(y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     """Hessian of y wrt x
 
     Parameters
@@ -242,8 +263,25 @@ def gradient(y, x, grad_outputs=None):
     return grad
 
 
-def jacobian(y, x):
-    ''' jacobian of y wrt x '''
+def jacobian(y: torch.Tensor, x: torch.Tensor):
+    """Jacobian of y wrt x.
+
+    Parameters
+    ----------
+    y: torch.Tensor
+        A [B, N, A] tensor with the outputs of f(x)
+
+    x: torch.Tensor
+        A [B, N, D] tensor such that f(x) = y
+
+    Returns
+    -------
+    jac: torch.Tensor
+        A [B, N, A, D] tensor with the jacobian of y wrt x.
+
+    status: int
+        -1 if any NaN were introduced by the calculations, 0 otherwise
+    """
     meta_batch_size, num_observations = y.shape[:2]
     jac = torch.zeros(meta_batch_size, num_observations, y.shape[-1], x.shape[-1]).to(y.device)  # (meta_batch_size*num_points, 2, 2)
     for i in range(y.shape[-1]):
