@@ -23,10 +23,11 @@ This is the official implementation of "Exploring Differential Geometry in Neura
 4. [MeshLab](https://www.meshlab.net/)
 
 ### Code organization
+Most of the code is organized in the `i3d` package. Inside the corresponding folder, there are the following files:
+
 * `dataset.py` - contains the sampling and data classes
 * `diff_operators.py` - implementation of differential operators (gradient, hessian, jacobian, curvatures)
 * `loss_functions.py` - contains loss functions for different experimental settings
-* `main.py` - main function and point-of-entry to our code
 * `meshing.py` - mesh creation through marching cubes
 * `model.py` - network and layers implementations
 * `util.py` - miscelaneous functions and utilities
@@ -42,6 +43,17 @@ In the `tools` folder, there are two scripts:
 
 * `estimate_mesh_curvatures.py`: Given a trained model (pth) and the original mesh, we estimate the vertex curvatures using the trained model.
 * `reconstruct.py`: Given a trained model (pth) reconstructs the mesh using marching cubes.
+
+The main training script is located in the repository root
+
+* `train_sdf.py` - main function and point-of-entry to our code
+
+The parameters for our experiments are stored inside the `yaml` files in the `experiments` folder. Besides the experiments for each mesh, this folder has two template mostly identical files:
+
+* `default.yaml` - parameters for uniform sampling
+* `default_curvature.yaml` - parameters for curvature-based sampling
+
+Note that for all curvature-based sampling experiments, the mesh must contain a curvature field. We expect it to be named "quality", following the meshlab convention and, in the PLY file, be the 7th data column.
 
 ### Setup and sample run
 
@@ -64,12 +76,16 @@ pip install -e .
 5. Download the datasets (available [here](https://drive.google.com/file/d/1MxG9nwiuCS6z9vo59NF93brw5DFYflMl/view?usp=sharing)) and extract them into the `data` folder of the repository
 6. Train a network for the armadillo mesh:
 ```
-python main.py experiments/armadillo_curvature_batch_sdf.json
+python train_sdf.py data/armadillo_curvs.ply results/armadillo_curvs experiments/armadillo_curvature.yaml
 ```
-7. The results will be stored in `results/armadillo_biased_curvatures_sdf`.
-8. To visualize the output mesh by opening the output PLY using MeshLab:
+7. The results will be stored in `results/armadillo_curvs`.
+8. Convert the trained network back to a triangle mesh:
 ```
-meshlab results/armadillo_biased_curvatures_sdf/reconstructions/model_best.ply
+python tools/reconstruct.py results/armadillo_curvs/best.pth results/armadillo_curvs/best.ply
+```
+9. To visualize the output mesh by opening the output PLY using MeshLab:
+```
+meshlab results/armadillo_curvs/best.ply
 ```
 
 ### End Result
@@ -80,7 +96,7 @@ If everything works, MeshLab should show the following image (or an image simila
 
 ### Linux
 
-We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training and visualization (steps 5 through 8) above.
+We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training and visualization (steps 5 through 9) above.
 
 ### Running on a headless server
 
