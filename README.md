@@ -98,13 +98,15 @@ If everything works, MeshLab should show the following image (or an image simila
 
 We tested the build steps stated above on Ubuntu 20.04. The prerequisites and setup remain the same, since all packages are available for both systems. We also provide a ```Makefile``` to cover the data download and network training and visualization (steps 5 through 9) above.
 
-### Running on a headless server
+### Running without graphical environments
 
-If you are training your model in a remote server with no graphical environment, you will probably end up with the following error: `pyglet.canvas.xlib.NoSuchDisplayException: Cannot connect to "None"`. This will happen during the sampling step when loading a mesh. Basically, this means that pyglet needs a graphical display, which does not exist. You can work around this error by creating a virtual framebuffer, which can be done by prepending your python command with: `xvfb-run -s "-screen 0 1400x900x24"`, as in:
+If you are training your model in a remote server with no graphical environment, you will probably end up with the following error: `pyglet.canvas.xlib.NoSuchDisplayException: Cannot connect to "None"`. This may happen during the SDF sampling step when iterating on a mesh. Basically, this means that pyglet needs a graphical display, which does not exist. You can work around this error by creating a virtual framebuffer, which can be done by prepending your python command with: `xvfb-run -s "-screen 0 1400x900x24"`, as in:
 
 ```{sh}
-xvfb-run -s "-screen 0 1400x900x24" python main.py experiments/armadillo_sdf.json
+xvfb-run -s "-screen 0 1400x900x24" python train_sdf.py experiments/armadillo_curvature.yaml
 ```
+
+Naturally, you may adjust the resolution to fit your needs. This was tested on an Ubuntu Linux server and should work for other distributions. If using BSDs or other systems, your milleage may vary.
 
 ## Citation
 If you find our work useful in your research, please cite:
