@@ -20,7 +20,7 @@ train_release_models: results/armadillo/best.ply results/bunny/best.ply results/
 	@echo "Models trained. Check the \"results\" folder"
 
 results/armadillo/best.ply: results/armadillo/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/armadillo/best.pth: data/armadillo_curvs.ply
 	@python train_sdf.py $< results/armadillo/ experiments/default_curvature.yaml --curvature-fractions 0.1 0.4 0.5
@@ -31,7 +31,7 @@ data/armadillo_curvs.ply:
 	@rm -f cookie
 
 results/bunny/best.ply: results/bunny/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/bunny/best.pth: data/bunny_curvs.ply
 	@python train_sdf.py $< results/bunny/ experiments/default_curvature.yaml --omega0 30 --omegaW 30
@@ -42,7 +42,7 @@ data/bunny_curvs.ply:
 	@rm -f cookie
 
 results/cad/best.ply: results/cad/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/cad/best.pth: data/cad.ply
 	@python train_sdf.py $< results/cad/ experiments/cad.yaml
@@ -53,7 +53,7 @@ data/cad.ply:
 	@rm -f cookie
 
 results/dragon/best.ply: results/dragon/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/dragon/best.pth: data/dragon_curvs.ply
 	@python train_sdf.py $< results/dragon/ experiments/default_curvature.yaml
@@ -64,7 +64,7 @@ data/dragon_curvs.ply:
 	@rm -f cookie
 
 results/buddha/best.ply: results/buddha/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/buddha/best.pth: data/buddha_curvs.ply
 	@python train_sdf.py $< results/buddha/ experiments/default_curvature.yaml
@@ -75,7 +75,7 @@ data/buddha_curvs.ply:
 	@rm -f cookie
 
 results/lucy_simple/best.ply: results/lucy_simple/best.pth
-	@python tools/reconstruct.py $< $@ -r 400
+	@python reconstruct.py $< $@ -r 400
 
 results/lucy_simple/best.pth: data/lucy_simple_curvs.ply
 	@python train_sdf.py $< results/lucy_simple/ experiments/default_curvature.yaml
