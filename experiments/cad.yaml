@@ -1,5 +1,5 @@
 network:
-  hidden_layers: [256, 256, 256]
+  hidden_layers: [128, 128, 128]
   omega_0: 30
   omega_w: 30
   in_coords: 3
