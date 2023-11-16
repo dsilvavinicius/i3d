@@ -1,0 +1,26 @@
+{
+    "description": "SIREN Learning of the Armadillo mesh using true SDF values and uniform sampling.",
+    "num_epochs": 10000,
+    "sampling_opts": {
+        "uniform_sampling": true
+    },
+    "dataset": "earth_normalized_vertex_colors.ply",
+    "batch_size": 100000,
+    "checkpoint_path": "results",
+    "experiment_name": "earth",
+    "epochs_to_checkpoint": 10,
+    "epochs_to_reconstruction": [1, 10, 50, 100, 200, 300, 400, 500, 1000, 5000],
+    "loss": "sdf",
+    "optimizer": {
+        "type": "adam",
+        "lr": 1e-4
+    },
+    "reconstruction": {
+        "resolution": 256,
+        "output_file": "final"
+    },
+    "network": {
+        "hidden_layer_nodes": [32, 32],
+        "w0": 20
+    }
+}

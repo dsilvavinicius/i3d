@@ -31,7 +31,7 @@ if __name__ == "__main__":
         help="Value for \\omega_0. Default is 1."
     )
     parser.add_argument(
-        "--resolution", "-r", default=128, type=int,
+        "--resolution", "-r", default=512, type=int,
         help="Resolution to use on marching cubes. Default is 128."
     )
 

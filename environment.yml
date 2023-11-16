@@ -4,6 +4,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - pandas
+  - tensorboard
   - blas=2.115=mkl
   - blas-devel=3.9.0=15_win64_mkl
   - brotlipy=0.7.0=py39hb82d6ee_1004
@@ -83,3 +85,4 @@ dependencies:
     - scikit-image==0.19.3
     - scipy==1.8.1
     - tifffile==2022.7.28
+    - open3d

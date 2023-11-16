@@ -39,7 +39,7 @@ def train_model(dataset, model, device, config) -> torch.nn.Module:
         batch_size=1,
         pin_memory=True,
         num_workers=0,
-        drop_last=False,
+        drop_last=False
     )
     model.to(device)
 

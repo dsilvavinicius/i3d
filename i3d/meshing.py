@@ -72,8 +72,13 @@ def gen_mc_coordinate_grid(N: int, voxel_size: float, t: float = None,
 def create_mesh(
     decoder,
     filename="",
+<<<<<<< Updated upstream
     t=None,
     N=256,
+=======
+    t=-1, # time=-1 means we are only in the space
+    N=512,
+>>>>>>> Stashed changes
     max_batch=64 ** 3,
     offset=None,
     scale=None,
