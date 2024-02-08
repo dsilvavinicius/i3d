@@ -166,6 +166,46 @@ def true_sdf(X, gt):
        'grad_constraint': grad_constraint.mean() * 5e1  # 1e1
     }
 
+def loss_sdf_on_neighborhood(X, gt):
+    """Uses true SDF value for off-surface points.
+
+    Parameters
+    ----------
+    X: dict[str=>torch.Tensor]
+        Model output with the following keys: 'model_in' and 'model_out'
+        with the model input and SDF values respectively.
+
+    gt: dict[str=>torch.Tensor]
+        Ground-truth data with the following keys: 'sdf' and 'normals', with
+        the actual SDF values and the input data normals, respectively.
+
+    Returns
+    -------
+    loss: dict[str=>torch.Tensor]
+        The calculated loss values for each constraint.
+    """
+    gt_sdf = gt['sdf']
+    gt_normals = gt['normals']
+
+    coords = X['model_in']
+    pred_sdf = X['model_out']
+
+    gradient = i3d.diff_operators.gradient(pred_sdf, coords)
+
+    # Initial-boundary constraints
+    sdf_constraint = (gt_sdf - pred_sdf)**2
+    normal_constraint = 1 - F.cosine_similarity(gt_normals, gradient, dim=-1)[..., None]
+
+
+    # PDE constraints
+    grad_constraint = eikonal_constraint(gradient).unsqueeze(-1)
+
+    return {
+       'sdf_constraint': sdf_constraint.mean() * 3e3,
+       'normal_constraint': normal_constraint.mean() * 1e2,  # 1e1,
+       'grad_constraint': grad_constraint.mean() * 5e1  # 1e1
+    }
+
 
 def principal_directions_sdf(model_output, gt):
     """Uses true SDF value off surface and tries to align the principal

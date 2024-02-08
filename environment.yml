@@ -83,3 +83,5 @@ dependencies:
     - scikit-image==0.19.3
     - scipy==1.8.1
     - tifffile==2022.7.28
+    - PyYAML==6.0
+    - open3d>=0.17.0

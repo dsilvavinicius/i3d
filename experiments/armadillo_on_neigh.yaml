@@ -1,0 +1,20 @@
+network:
+  hidden_layers: [256,256]
+  omega_0: 90
+  omega_w: 90
+  in_coords: 3
+  out_coords: 1
+
+optimizer:
+  lr: 0.0001
+  type: adam
+
+training:
+  epochs: 5000
+  batchsize: 172974
+  delta: 0.006
+
+sampling:
+  type: uniform  # curvature or uniform
+  curvature_fractions: [0.2, 0.6, 0.2]
+  curvature_percentiles: [0.6, 0.95]
