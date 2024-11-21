@@ -42,7 +42,7 @@ def _sample_on_surface(
     torch.randperm
     """
     if n_points == vertices.shape[0]:
-        return vertices, torch.arange(end=n_points, step=1, device=device)
+        return vertices, torch.arange(0, end=n_points, step=1, device=device)
     idx = torch.randperm(vertices.shape[0], device=device)[:n_points]
     sampled = vertices[idx, ...]
     return sampled, idx
